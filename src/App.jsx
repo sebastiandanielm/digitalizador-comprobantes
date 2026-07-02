@@ -86,7 +86,17 @@ TICKETS FISCALES:
 - Extraé el total, fecha, y razón social del emisor
 - Si hay ítems detallados, incluílos todos
 
-DDJJ (ARCA/AFIP):
+DDJJ FORMULARIO 931 (SUSS/ARCA):
+- El "total" es la SUMA de la sección VIII únicamente
+- Los ítems son SOLO los conceptos de la sección VIII (montos a ingresar)
+- La "Detracción art. 23 Ley 27.541" NO es un ítem a pagar, es un ajuste interno ya descontado dentro de Contribuciones SS
+- NO incluyas detracciones, compensaciones ni retenciones como ítems separados
+- "neto_gravado" = Suma de remuneraciones (campo Suma de Rem.)
+- "periodo" = Mes-Año del formulario
+- "receptor_razon_social" = "AFIP - S.U.S.S."
+- En "observaciones" indicá cantidad de empleados y período
+
+OTRAS DDJJ (ARCA/AFIP):
 - Extraé período, tipo de declaración, importes declarados
 - Usar campo "observaciones" para detalles adicionales
 
