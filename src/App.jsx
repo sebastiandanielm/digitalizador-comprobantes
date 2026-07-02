@@ -20,12 +20,6 @@ const TIPO_LABELS = {
   recibo_sueldo: "Recibo de Sueldo", ddjj: "DDJJ", otro: "Otro",
 };
 
-const HEADERS = [
-  "Archivo","Tipo","N° Comprobante","Punto de Venta","Fecha Emisión","Fecha Venc.",
-  "Emisor","CUIT Emisor","Receptor","CUIT Receptor","Neto Gravado","IVA %","IVA $",
-  "Percepciones","Otros Tributos","Total","Moneda","Período","Empleado","CUIL","Estado","Observaciones"
-];
-
 const fmtPeso = (n) =>
   n != null && n !== "" && n !== 0
     ? new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 }).format(n)
@@ -65,8 +59,45 @@ async function procesarConClaude(file) {
   });
   const isPdf = file.type === "application/pdf";
   const prompt = `Sos un sistema experto en comprobantes fiscales argentinos.
-Analizá el documento y extraé TODA la información relevante.
-Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks.
+Analizá el documento exhaustivamente y extraé TODA la información relevante.
+
+INSTRUCCIONES ESPECÍFICAS POR TIPO:
+
+FACTURAS DE SERVICIOS PÚBLICOS (Edenor, Edesur, AySA, gas, etc.):
+- Extraé TODOS los conceptos como ítems: cargo fijo, cargo variable, impuestos nacionales, provinciales, municipales, contribuciones, bonificaciones, ajustes
+- El "neto_gravado" es la suma de conceptos eléctricos/servicio ANTES de impuestos
+- El "iva_importe" es el IVA específico si figura
+- En "otros_tributos" sumá todos los impuestos y contribuciones adicionales
+- El "total" es el importe total a pagar
+- Extraé fecha de vencimiento y período de consumo en "periodo"
+
+FACTURAS A/B/C DE PROVEEDORES:
+- Extraé TODOS los ítems con cantidad, unidad, precio unitario y subtotal
+- Identificá correctamente el neto gravado, alícuota de IVA y su importe
+- Extraé percepciones de IIBB, retenciones u otros tributos por separado
+
+RECIBOS DE SUELDO:
+- "emisor_razon_social" es la empresa empleadora
+- "empleado_nombre" es el trabajador
+- "total" es el neto a cobrar
+- Extraé período, categoría y CUIL en los campos correspondientes
+
+TICKETS FISCALES:
+- Extraé el total, fecha, y razón social del emisor
+- Si hay ítems detallados, incluílos todos
+
+DDJJ (ARCA/AFIP):
+- Extraé período, tipo de declaración, importes declarados
+- Usar campo "observaciones" para detalles adicionales
+
+REGLAS GENERALES:
+- Confianza "alta": todos los campos principales están claros
+- Confianza "media": algunos campos requieren interpretación
+- Confianza "baja": documento ilegible o muy complejo
+- Si un campo no existe en el documento, usá null
+- Los montos siempre como números, sin símbolos ni puntos de miles
+
+Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
   "tipo": "factura_a"|"factura_b"|"factura_c"|"ticket"|"servicio_publico"|"recibo_sueldo"|"ddjj"|"otro",
   "numero_comprobante": "string|null",
@@ -100,7 +131,7 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks.
   const resp = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1500, messages: [{ role: "user", content: [block, { type: "text", text: prompt }] }] }),
+    body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 2000, messages: [{ role: "user", content: [block, { type: "text", text: prompt }] }] }),
   });
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error?.message || "Error en el servidor");
@@ -119,6 +150,20 @@ async function guardarEnSheets(comp) {
   }
 }
 
+async function eliminarDeSheets(rowIndex) {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", rowIndex }),
+    });
+    return resp.ok;
+  } catch (e) {
+    console.error("Error eliminando de Sheets:", e);
+    return false;
+  }
+}
+
 async function cargarDeSheets() {
   try {
     const resp = await fetch("/api/sheets", {
@@ -131,6 +176,7 @@ async function cargarDeSheets() {
     if (rows.length <= 1) return [];
     return rows.slice(1).map((row, i) => ({
       id: `sheet-${i}`,
+      sheetRowIndex: i,
       nombre: row[0] || "",
       estado: row[20] || "procesado",
       fileUrl: null,
@@ -189,28 +235,27 @@ const Grid2 = ({ a, b }) => (
 
 // ─── App principal ────────────────────────────────────────────────────────────
 export default function App() {
-  const [comp, setComp]       = useState([]);
-  const [drag, setDrag]       = useState(false);
-  const [selId, setSelId]     = useState(null);
-  const [fTipo, setFTipo]     = useState("todos");
-  const [fEst, setFEst]       = useState("todos");
-  const [q, setQ]             = useState("");
-  const [editing, setEditing] = useState(false);
-  const [editD, setEditD]     = useState({});
+  const [comp, setComp]         = useState([]);
+  const [drag, setDrag]         = useState(false);
+  const [selId, setSelId]       = useState(null);
+  const [fTipo, setFTipo]       = useState("todos");
+  const [fEst, setFEst]         = useState("todos");
+  const [q, setQ]               = useState("");
+  const [editing, setEditing]   = useState(false);
+  const [editD, setEditD]       = useState({});
   const [cargando, setCargando] = useState(true);
+  const [eliminando, setEliminando] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const fileRef = useRef();
 
-  // Cargar datos de Sheets al iniciar
   useEffect(() => {
-    cargarDeSheets().then((datos) => {
-      setComp(datos);
-      setCargando(false);
-    });
+    cargarDeSheets().then((datos) => { setComp(datos); setCargando(false); });
   }, []);
 
   const procesar = useCallback(async (files) => {
     const items = Array.from(files).map((f) => ({
       id: crypto.randomUUID(),
+      sheetRowIndex: null,
       nombre: f.name,
       estado: "procesando",
       datos: null,
@@ -225,6 +270,12 @@ export default function App() {
         const estado = datos.confianza === "baja" ? "revisar" : "procesado";
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
+        // Recargar para obtener el índice correcto de la fila en Sheets
+        const refreshed = await cargarDeSheets();
+        setComp((p) => {
+          const sinSheet = p.filter((c) => !c.id.startsWith("sheet-"));
+          return [...sinSheet.map((c) => c.id === item.id ? { ...c, estado, datos } : c), ...refreshed];
+        });
       } catch (e) {
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado: "error", error: e.message } : c));
       }
@@ -235,6 +286,25 @@ export default function App() {
     e.preventDefault(); setDrag(false);
     if (e.dataTransfer.files.length) procesar(e.dataTransfer.files);
   }, [procesar]);
+
+  const eliminarComprobante = async () => {
+    if (!sel) return;
+    setEliminando(true);
+    try {
+      if (sel.sheetRowIndex !== null) {
+        await eliminarDeSheets(sel.sheetRowIndex);
+      }
+      setComp((p) => p.filter((c) => c.id !== selId));
+      setSelId(null);
+      setConfirmarEliminar(false);
+      // Recargar índices
+      const refreshed = await cargarDeSheets();
+      setComp(refreshed);
+    } catch (e) {
+      console.error(e);
+    }
+    setEliminando(false);
+  };
 
   const filtrados = comp.filter((c) => {
     if (fTipo !== "todos" && c.datos?.tipo !== fTipo) return false;
@@ -280,8 +350,8 @@ export default function App() {
     setEditing(false);
   };
 
-  const ss  = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
-  const tdS = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
+  const ss   = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
+  const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
   return (
@@ -307,10 +377,10 @@ export default function App() {
       <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "14px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, maxWidth: 900 }}>
           {[
-            { label: "Total comprobantes", val: comp.length,         icon: "📄", color: C.text    },
-            { label: "Total facturado",    val: fmtPeso(totalFact),  icon: "💰", color: C.success  },
-            { label: "Crédito IVA",        val: fmtPeso(creditoIVA), icon: "🧾", color: C.accent   },
-            { label: "Pend. revisión",     val: pendientes,          icon: "⚠", color: C.warning  },
+            { label: "Total comprobantes", val: comp.length,         icon: "📄", color: C.text   },
+            { label: "Total facturado",    val: fmtPeso(totalFact),  icon: "💰", color: C.success },
+            { label: "Crédito IVA",        val: fmtPeso(creditoIVA), icon: "🧾", color: C.accent  },
+            { label: "Pend. revisión",     val: pendientes,          icon: "⚠", color: C.warning },
           ].map((s) => (
             <div key={s.label}>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{s.icon} {s.label}</div>
@@ -384,7 +454,7 @@ export default function App() {
                     <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{comp.length === 0 ? "Cargá comprobantes para comenzar" : "Sin resultados"}</td></tr>
                   ) : filtrados.map((c) => (
                     <tr key={c.id}
-                      onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); }}
+                      onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}
                       style={{ borderBottom: `1px solid ${C.border}`, background: c.id === selId ? C.accentBg : "transparent", cursor: "pointer", transition: "background .1s" }}
                       onMouseEnter={(e) => { if (c.id !== selId) e.currentTarget.style.background = "#f5f7ff"; }}
                       onMouseLeave={(e) => { if (c.id !== selId) e.currentTarget.style.background = "transparent"; }}>
@@ -411,6 +481,8 @@ export default function App() {
           {/* RIGHT — Detail panel */}
           {sel && (
             <div style={{ position: "sticky", top: 76, borderRadius: 14, overflow: "hidden", boxShadow: C.shadowLg, maxHeight: "calc(100vh - 96px)", overflowY: "auto" }}>
+
+              {/* Header del panel */}
               <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1, marginRight: 10 }}>
                   <div style={{ color: C.accent, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Detalle del comprobante</div>
@@ -418,10 +490,11 @@ export default function App() {
                     {sel.datos ? `${TIPO_LABELS[sel.datos.tipo] || sel.datos.tipo}${sel.datos.numero_comprobante ? " · " + sel.datos.numero_comprobante : ""} · ${sel.datos.emisor_razon_social || sel.nombre}` : sel.nombre}
                   </div>
                 </div>
-                <button onClick={() => { setSelId(null); setEditing(false); }}
+                <button onClick={() => { setSelId(null); setEditing(false); setConfirmarEliminar(false); }}
                   style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>✕</button>
               </div>
 
+              {/* Texto original */}
               {sel.datos?.texto_original && (
                 <div style={{ background: "#f8fafc", borderBottom: `1px solid ${C.border}`, padding: "14px 20px" }}>
                   <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>Documento original</div>
@@ -431,6 +504,7 @@ export default function App() {
                 </div>
               )}
 
+              {/* Preview */}
               {sel.fileUrl && !sel.datos?.texto_original && (
                 <div style={{ background: "#f8fafc", borderBottom: `1px solid ${C.border}` }}>
                   {sel.nombre.toLowerCase().endsWith(".pdf")
@@ -439,6 +513,7 @@ export default function App() {
                 </div>
               )}
 
+              {/* Datos extraídos */}
               {sel.datos && !editing && (
                 <div style={{ background: C.white, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -500,13 +575,39 @@ export default function App() {
 
                   {sel.datos.observaciones && <F l="Observaciones" v={sel.datos.observaciones} />}
 
+                  {/* Botones de acción */}
                   <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
-                    {sel.estado === "revisar" && <button onClick={() => aprobar(sel.id)} style={btnS(C.accent)}>✓ Aprobar y guardar</button>}
-                    <button onClick={() => { setEditing(true); setEditD({ ...sel.datos }); }} style={btnS("#6c757d")}>✎ Editar campos</button>
+                    {sel.estado === "revisar" && <button onClick={() => aprobar(sel.id)} style={btnS(C.accent)}>✓ Aprobar</button>}
+                    <button onClick={() => { setEditing(true); setEditD({ ...sel.datos }); }} style={btnS("#6c757d")}>✎ Editar</button>
                   </div>
+
+                  {/* Botón eliminar */}
+                  {!confirmarEliminar ? (
+                    <button onClick={() => setConfirmarEliminar(true)}
+                      style={{ width: "100%", background: "transparent", color: C.danger, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
+                      🗑 Eliminar comprobante
+                    </button>
+                  ) : (
+                    <div style={{ background: C.dangerBg, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "14px", textAlign: "center" }}>
+                      <div style={{ color: C.danger, fontWeight: 700, marginBottom: 10, fontSize: 13 }}>
+                        ¿Confirmás que querés eliminar este comprobante?
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={eliminarComprobante} disabled={eliminando}
+                          style={{ flex: 1, background: C.danger, color: "#fff", border: "none", borderRadius: 7, padding: "9px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                          {eliminando ? "Eliminando…" : "Sí, eliminar"}
+                        </button>
+                        <button onClick={() => setConfirmarEliminar(false)}
+                          style={{ flex: 1, background: "#6c757d", color: "#fff", border: "none", borderRadius: 7, padding: "9px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
+              {/* Formulario edición */}
               {sel.datos && editing && (
                 <div style={{ background: C.white, padding: "16px 20px" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: C.navy }}>✎ Editar campos</div>
