@@ -1,117 +1,89 @@
 export default async function handler(req, res) {
-  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-  const sheetId = process.env.GOOGLE_SHEET_ID;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  const sheetId = process.env.GOOGLE_SHEET_ID;
+  const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
   const { action, data } = req.body || {};
 
-  const token = await getAccessToken(credentials);
+  try {
+    const token = await getToken(sa);
 
-  if (action === "get") {
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const result = await response.json();
-    return res.status(200).json(result);
+    if (action === 'get') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'append') {
+      const row = [
+        data.nombre||'', data.tipo||'', data.numero_comprobante||'',
+        data.punto_venta||'', data.fecha_emision||'', data.fecha_vencimiento||'',
+        data.emisor_razon_social||'', data.emisor_cuit||'',
+        data.receptor_razon_social||'', data.receptor_cuit||'',
+        data.neto_gravado??'', data.iva_alicuota??'', data.iva_importe??'',
+        data.percepciones??'', data.otros_tributos??'', data.total??'',
+        data.moneda||'ARS', data.periodo||'', data.empleado_nombre||'',
+        data.empleado_cuil||'', data.estado||'', data.observaciones||''
+      ];
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    return res.status(400).json({ error: 'Acción no válida' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
-
-  if (action === "append") {
-    const row = dataToRow(data);
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes:append?valueInputOption=RAW`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ values: [row] }),
-      }
-    );
-    const result = await response.json();
-    return res.status(200).json(result);
-  }
-
-  return res.status(400).json({ error: "Acción no válida" });
 }
 
-async function getAccessToken(credentials) {
+async function getToken(sa) {
   const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: credentials.client_email,
-    scope: "https://www.googleapis.com/auth/spreadsheets",
-    aud: "https://oauth2.googleapis.com/token",
+  const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600,
     iat: now,
-  };
+  }));
 
-  const header = { alg: "RS256", typ: "JWT" };
-  const toSign =
-    btoa(JSON.stringify(header)) + "." + btoa(JSON.stringify(payload));
+  const signingInput = `${header}.${payload}`;
+  const pemContents = sa.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n/g, '');
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
 
-  const privateKey = credentials.private_key;
   const key = await crypto.subtle.importKey(
-    "pkcs8",
-    pemToArrayBuffer(privateKey),
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
+    'pkcs8', binaryDer.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
   );
 
   const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    new TextEncoder().encode(toSign)
+    'RSASSA-PKCS1-v1_5', key,
+    new TextEncoder().encode(signingInput)
   );
 
-  const jwt = toSign + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
+  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  const jwt = `${signingInput}.${sig}`;
+
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
   });
 
-  const result = await response.json();
+  const result = await r.json();
+  if (!result.access_token) throw new Error(JSON.stringify(result));
   return result.access_token;
 }
 
-function pemToArrayBuffer(pem) {
-  const base64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const binary = atob(base64);
-  const buffer = new ArrayBuffer(binary.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
-  return buffer;
-}
-
-function dataToRow(d) {
-  return [
-    d.nombre || "",
-    d.tipo || "",
-    d.numero_comprobante || "",
-    d.punto_venta || "",
-    d.fecha_emision || "",
-    d.fecha_vencimiento || "",
-    d.emisor_razon_social || "",
-    d.emisor_cuit || "",
-    d.receptor_razon_social || "",
-    d.receptor_cuit || "",
-    d.neto_gravado ?? "",
-    d.iva_alicuota ?? "",
-    d.iva_importe ?? "",
-    d.percepciones ?? "",
-    d.otros_tributos ?? "",
-    d.total ?? "",
-    d.moneda || "ARS",
-    d.periodo || "",
-    d.empleado_nombre || "",
-    d.empleado_cuil || "",
-    d.estado || "",
-    d.observaciones || "",
-  ];
-}
-
-export const config = {
-  api: { bodyParser: { sizeLimit: "1mb" } },
-};
+export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
