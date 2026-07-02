@@ -463,7 +463,7 @@ export default function App() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                         <thead>
                           <tr>
-                            {["Descripción", "Cant.", "Total"].map((h) => (
+                            {["Descripción", "Cant.", "P. Unit.", "Total"].map((h) => (
                               <th key={h} style={{ textAlign: "left", color: C.textMuted, fontWeight: 700, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, fontSize: 10, textTransform: "uppercase" }}>{h}</th>
                             ))}
                           </tr>
@@ -473,7 +473,8 @@ export default function App() {
                             <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                               <td style={{ padding: "6px 6px", lineHeight: 1.4 }}>{it.descripcion}</td>
                               <td style={{ padding: "6px 6px", color: C.textSec, whiteSpace: "nowrap" }}>{it.cantidad != null ? `${it.cantidad}${it.unidad ? " " + it.unidad : ""}` : "—"}</td>
-                              <td style={{ padding: "6px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtPeso(it.subtotal)}</td>
+<td style={{ padding: "6px 6px", color: C.textSec, whiteSpace: "nowrap" }}>{fmtPeso(it.precio_unitario)}</td>
+<td style={{ padding: "6px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtPeso(it.subtotal)}</td>
                             </tr>
                           ))}
                         </tbody>
