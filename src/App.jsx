@@ -104,7 +104,7 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks.
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5",
       max_tokens: 1500,
       messages: [{ role: "user", content: [block, { type: "text", text: prompt }] }],
     }),
