@@ -15,32 +15,16 @@ const C = {
 };
 
 const TIPOS_DEFAULT = [
-  { key: "factura_a",       label: "Factura A" },
-  { key: "factura_b",       label: "Factura B" },
-  { key: "factura_c",       label: "Factura C" },
-  { key: "ticket",          label: "Ticket Fiscal" },
-  { key: "servicio_publico",label: "Servicio Público" },
-  { key: "recibo_sueldo",   label: "Recibo de Sueldo" },
-  { key: "ddjj",            label: "Declaración Jurada" },
-  { key: "impuesto",        label: "Impuesto" },
-  { key: "otro",            label: "Otro" },
+  { key: "factura_a",        label: "Factura A" },
+  { key: "factura_b",        label: "Factura B" },
+  { key: "factura_c",        label: "Factura C" },
+  { key: "ticket",           label: "Ticket Fiscal" },
+  { key: "servicio_publico", label: "Servicio Público" },
+  { key: "recibo_sueldo",    label: "Recibo de Sueldo" },
+  { key: "ddjj",             label: "Declaración Jurada" },
+  { key: "impuesto",         label: "Impuesto" },
+  { key: "otro",             label: "Otro" },
 ];
-
-function useTipos() {
-  const [tipos, setTipos] = useState(() => {
-    try {
-      const saved = localStorage.getItem("tipos_comprobantes");
-      return saved ? JSON.parse(saved) : TIPOS_DEFAULT;
-    } catch { return TIPOS_DEFAULT; }
-  });
-
-  const guardarTipos = (nuevos) => {
-    setTipos(nuevos);
-    localStorage.setItem("tipos_comprobantes", JSON.stringify(nuevos));
-  };
-
-  return [tipos, guardarTipos];
-}
 
 const fmtPeso = (n) =>
   n != null && n !== "" && n !== 0
@@ -75,34 +59,25 @@ const TipoBadge = ({ tipo, tipos }) => {
 };
 
 // ─── Pantalla de Configuración ────────────────────────────────────────────────
-function ConfigScreen({ tipos, onGuardar, onVolver }) {
-  const [lista, setLista] = useState(tipos.map((t) => ({ ...t })));
+function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
+  const [lista, setLista]       = useState(tipos.map((t) => ({ ...t })));
   const [nuevoLabel, setNuevoLabel] = useState("");
   const [guardado, setGuardado] = useState(false);
 
-  const actualizar = (i, label) => {
-    setLista((p) => p.map((t, idx) => idx === i ? { ...t, label } : t));
-  };
-
-  const eliminar = (i) => {
-    setLista((p) => p.filter((_, idx) => idx !== i));
-  };
+  const actualizar = (i, label) => setLista((p) => p.map((t, idx) => idx === i ? { ...t, label } : t));
+  const eliminar   = (i) => setLista((p) => p.filter((_, idx) => idx !== i));
 
   const agregar = () => {
     if (!nuevoLabel.trim()) return;
-    const key = nuevoLabel.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-    setLista((p) => [...p, { key: key + "_" + Date.now(), label: nuevoLabel.trim() }]);
+    const key = "tipo_" + Date.now();
+    setLista((p) => [...p, { key, label: nuevoLabel.trim() }]);
     setNuevoLabel("");
   };
 
-  const guardar = () => {
-    onGuardar(lista);
+  const guardar = async () => {
+    await onGuardar(lista);
     setGuardado(true);
-    setTimeout(() => setGuardado(false), 2000);
-  };
-
-  const restaurar = () => {
-    setLista(TIPOS_DEFAULT.map((t) => ({ ...t })));
+    setTimeout(() => setGuardado(false), 3000);
   };
 
   return (
@@ -114,16 +89,16 @@ function ConfigScreen({ tipos, onGuardar, onVolver }) {
         </button>
         <div>
           <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>⚙ Configuración</div>
-          <div style={{ color: C.textMuted, fontSize: 13 }}>Personalizá los tipos de comprobantes</div>
+          <div style={{ color: C.textMuted, fontSize: 13 }}>Los cambios se guardan en Google Sheets y aplican a todas las PCs</div>
         </div>
       </div>
 
       <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 700, fontSize: 15 }}>Tipos de comprobantes</span>
-          <button onClick={restaurar}
+          <button onClick={() => setLista(TIPOS_DEFAULT.map((t) => ({ ...t })))}
             style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textSec, borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-            Restaurar valores originales
+            Restaurar originales
           </button>
         </div>
 
@@ -131,11 +106,8 @@ function ConfigScreen({ tipos, onGuardar, onVolver }) {
           {lista.map((t, i) => (
             <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "monospace", minWidth: 160, background: C.bg, padding: "4px 8px", borderRadius: 4 }}>{t.key}</span>
-              <input
-                value={t.label}
-                onChange={(e) => actualizar(i, e.target.value)}
-                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 14, color: C.text, background: C.bg, fontWeight: 600 }}
-              />
+              <input value={t.label} onChange={(e) => actualizar(i, e.target.value)}
+                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 14, color: C.text, background: C.bg, fontWeight: 600 }} />
               <button onClick={() => eliminar(i)}
                 style={{ background: C.dangerBg, color: C.danger, border: `1px solid ${C.danger}33`, borderRadius: 7, padding: "7px 12px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                 🗑
@@ -144,17 +116,13 @@ function ConfigScreen({ tipos, onGuardar, onVolver }) {
           ))}
         </div>
 
-        {/* Agregar nuevo tipo */}
         <div style={{ padding: "16px 20px", borderTop: `2px solid ${C.border}`, background: C.bg }}>
           <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Agregar nuevo tipo</div>
           <div style={{ display: "flex", gap: 10 }}>
-            <input
-              value={nuevoLabel}
-              onChange={(e) => setNuevoLabel(e.target.value)}
+            <input value={nuevoLabel} onChange={(e) => setNuevoLabel(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && agregar()}
               placeholder="Ej: Flete, Materia Prima, Mantenimiento..."
-              style={{ flex: 1, padding: "9px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: C.white }}
-            />
+              style={{ flex: 1, padding: "9px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: C.white }} />
             <button onClick={agregar}
               style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
               + Agregar
@@ -163,16 +131,15 @@ function ConfigScreen({ tipos, onGuardar, onVolver }) {
         </div>
       </div>
 
-      {/* Botón guardar */}
-      <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-        <button onClick={guardar}
-          style={{ flex: 1, background: guardado ? C.success : C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", transition: "background .3s" }}>
-          {guardado ? "✓ Guardado correctamente" : "💾 Guardar cambios"}
+      <div style={{ marginTop: 20 }}>
+        <button onClick={guardar} disabled={guardando}
+          style={{ width: "100%", background: guardado ? C.success : C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", transition: "background .3s" }}>
+          {guardando ? "⏳ Guardando en Google Sheets…" : guardado ? "✓ Guardado — visible en todas las PCs" : "💾 Guardar cambios"}
         </button>
       </div>
 
       <div style={{ marginTop: 14, background: C.accentBg, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.accentDark }}>
-        <strong>💡 Tip:</strong> Los cambios se guardan en este navegador. Si usás la app en otra PC, vas a ver los tipos originales hasta que los configures allá también.
+        <strong>💡</strong> Los cambios se guardan en Google Sheets y se aplican automáticamente en todas las PCs la próxima vez que abran la app.
       </div>
     </div>
   );
@@ -199,52 +166,36 @@ ${tiposDesc}
 INSTRUCCIONES ESPECÍFICAS POR TIPO:
 
 FACTURAS DE SERVICIOS PÚBLICOS (Edenor, Edesur, AySA, gas, etc.):
-- Extraé TODOS los conceptos como ítems: cargo fijo, cargo variable, impuestos nacionales, provinciales, municipales, contribuciones, bonificaciones, ajustes
-- El "neto_gravado" es la suma de conceptos eléctricos/servicio ANTES de impuestos
-- El "iva_importe" es el IVA específico si figura
-- En "otros_tributos" sumá todos los impuestos y contribuciones adicionales
+- Extraé TODOS los conceptos como ítems
+- "neto_gravado" es la suma de conceptos de servicio ANTES de impuestos
+- En "otros_tributos" sumá todos los impuestos adicionales
 - El "total" es el importe total a pagar
-- Extraé fecha de vencimiento y período de consumo en "periodo"
+- Extraé fecha de vencimiento y período en "periodo"
 
 FACTURAS A/B/C DE PROVEEDORES:
 - Extraé TODOS los ítems con cantidad, unidad, precio unitario y subtotal
-- Identificá correctamente el neto gravado, alícuota de IVA y su importe
-- Extraé percepciones de IIBB, retenciones u otros tributos por separado
+- Identificá neto gravado, alícuota de IVA y su importe
+- Extraé percepciones de IIBB y otros tributos por separado
 
 RECIBOS DE SUELDO:
 - "emisor_razon_social" es la empresa empleadora
 - "empleado_nombre" es el trabajador
 - "total" es el neto a cobrar
-- Extraé período, categoría y CUIL en los campos correspondientes
-
-TICKETS FISCALES:
-- Extraé el total, fecha, y razón social del emisor
-- Si hay ítems detallados, incluílos todos
 
 DDJJ FORMULARIO 931 (SUSS/ARCA):
 - El "total" es la SUMA de la sección VIII únicamente
-- Los ítems son SOLO los conceptos de la sección VIII (montos a ingresar)
-- La "Detracción art. 23 Ley 27.541" NO es un ítem a pagar, es un ajuste interno ya descontado
-- NO incluyas detracciones, compensaciones ni retenciones como ítems
+- Los ítems son SOLO los conceptos de la sección VIII
+- La "Detracción art. 23 Ley 27.541" NO es un ítem, es un ajuste interno ya descontado
 - "neto_gravado" = Suma de remuneraciones
-- "periodo" = Mes-Año del formulario
 - "receptor_razon_social" = "AFIP - S.U.S.S."
-- En "observaciones" indicá cantidad de empleados y período
 
 IMPUESTOS (municipales, provinciales, nacionales):
-- Extraé el tipo de impuesto, período, vencimiento y monto a pagar
-- Usar "observaciones" para detalles adicionales
-
-OTRAS DDJJ (ARCA/AFIP):
-- Extraé período, tipo de declaración, importes declarados
+- Extraé tipo de impuesto, período, vencimiento y monto a pagar
 
 REGLAS GENERALES:
-- Confianza "alta": todos los campos principales están claros
-- Confianza "media": algunos campos requieren interpretación
-- Confianza "baja": documento ilegible o muy complejo
-- Si un campo no existe en el documento, usá null
-- Los montos siempre como números, sin símbolos ni puntos de miles
 - Elegí el tipo más específico disponible de la lista
+- Si un campo no existe, usá null
+- Los montos siempre como números sin símbolos
 
 Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
@@ -270,7 +221,7 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
   "periodo": "string|null",
   "empleado_nombre": "string|null",
   "empleado_cuil": "string|null",
-  "texto_original": "resumen del texto clave del documento en max 500 caracteres",
+  "texto_original": "resumen del texto clave en max 500 caracteres",
   "observaciones": "string|null",
   "confianza": "alta"|"media"|"baja"
 }`;
@@ -296,7 +247,7 @@ async function guardarEnSheets(comp) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "append", data: { nombre: comp.nombre, estado: comp.estado, ...comp.datos } }),
     });
-  } catch (e) { console.error("Error guardando en Sheets:", e); }
+  } catch (e) { console.error("Error guardando:", e); }
 }
 
 async function eliminarDeSheets(rowIndex) {
@@ -307,7 +258,7 @@ async function eliminarDeSheets(rowIndex) {
       body: JSON.stringify({ action: "delete", rowIndex }),
     });
     return resp.ok;
-  } catch (e) { console.error("Error eliminando:", e); return false; }
+  } catch (e) { return false; }
 }
 
 async function cargarDeSheets() {
@@ -321,36 +272,48 @@ async function cargarDeSheets() {
     const rows = data.values || [];
     if (rows.length <= 1) return [];
     return rows.slice(1).map((row, i) => ({
-      id: `sheet-${i}`,
-      sheetRowIndex: i,
-      nombre: row[0] || "",
-      estado: row[20] || "procesado",
-      fileUrl: null,
+      id: `sheet-${i}`, sheetRowIndex: i,
+      nombre: row[0] || "", estado: row[20] || "procesado", fileUrl: null,
       datos: {
-        tipo: row[1] ? row[1].toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") : "otro",
-        numero_comprobante: row[2] || null,
-        punto_venta: row[3] || null,
-        fecha_emision: row[4] || null,
-        fecha_vencimiento: row[5] || null,
-        emisor_razon_social: row[6] || null,
-        emisor_cuit: row[7] || null,
-        receptor_razon_social: row[8] || null,
-        receptor_cuit: row[9] || null,
+        tipo: row[1] || "otro",
+        numero_comprobante: row[2] || null, punto_venta: row[3] || null,
+        fecha_emision: row[4] || null, fecha_vencimiento: row[5] || null,
+        emisor_razon_social: row[6] || null, emisor_cuit: row[7] || null,
+        receptor_razon_social: row[8] || null, receptor_cuit: row[9] || null,
         neto_gravado: row[10] ? parseFloat(row[10]) : null,
         iva_alicuota: row[11] ? parseFloat(row[11]) : null,
         iva_importe: row[12] ? parseFloat(row[12]) : null,
         percepciones: row[13] ? parseFloat(row[13]) : null,
         otros_tributos: row[14] ? parseFloat(row[14]) : null,
         total: row[15] ? parseFloat(row[15]) : null,
-        moneda: row[16] || "ARS",
-        periodo: row[17] || null,
-        empleado_nombre: row[18] || null,
-        empleado_cuil: row[19] || null,
-        observaciones: row[21] || null,
-        items: [], confianza: "alta",
+        moneda: row[16] || "ARS", periodo: row[17] || null,
+        empleado_nombre: row[18] || null, empleado_cuil: row[19] || null,
+        observaciones: row[21] || null, items: [], confianza: "alta",
       },
     }));
-  } catch (e) { console.error("Error cargando:", e); return []; }
+  } catch (e) { return []; }
+}
+
+async function cargarTiposDeSheets() {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "get_tipos" }),
+    });
+    const data = await resp.json();
+    const rows = data.values || [];
+    if (rows.length <= 1) return null; // Sin configuración guardada
+    return rows.slice(1).map((row) => ({ key: row[0], label: row[1] })).filter((t) => t.key && t.label);
+  } catch (e) { return null; }
+}
+
+async function guardarTiposEnSheets(tipos) {
+  await fetch("/api/sheets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "save_tipos", data: { tipos } }),
+  });
 }
 
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
@@ -374,24 +337,37 @@ const Grid2 = ({ a, b }) => (
 
 // ─── App principal ────────────────────────────────────────────────────────────
 export default function App() {
-  const [tipos, setTipos]       = useTipos();
-  const [comp, setComp]         = useState([]);
-  const [drag, setDrag]         = useState(false);
-  const [selId, setSelId]       = useState(null);
-  const [fTipo, setFTipo]       = useState("todos");
-  const [fEst, setFEst]         = useState("todos");
-  const [q, setQ]               = useState("");
-  const [editing, setEditing]   = useState(false);
-  const [editD, setEditD]       = useState({});
-  const [cargando, setCargando] = useState(true);
-  const [eliminando, setEliminando]           = useState(false);
+  const [tipos, setTipos]           = useState(TIPOS_DEFAULT);
+  const [comp, setComp]             = useState([]);
+  const [drag, setDrag]             = useState(false);
+  const [selId, setSelId]           = useState(null);
+  const [fTipo, setFTipo]           = useState("todos");
+  const [fEst, setFEst]             = useState("todos");
+  const [q, setQ]                   = useState("");
+  const [editing, setEditing]       = useState(false);
+  const [editD, setEditD]           = useState({});
+  const [cargando, setCargando]     = useState(true);
+  const [eliminando, setEliminando] = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla] = useState("lista"); // "lista" | "config"
+  const [pantalla, setPantalla]     = useState("lista");
+  const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
+  // Cargar tipos y comprobantes al iniciar
   useEffect(() => {
-    cargarDeSheets().then((datos) => { setComp(datos); setCargando(false); });
+    Promise.all([cargarTiposDeSheets(), cargarDeSheets()]).then(([tiposGuardados, datos]) => {
+      if (tiposGuardados && tiposGuardados.length > 0) setTipos(tiposGuardados);
+      setComp(datos);
+      setCargando(false);
+    });
   }, []);
+
+  const handleGuardarTipos = async (nuevosTipos) => {
+    setGuardandoTipos(true);
+    await guardarTiposEnSheets(nuevosTipos);
+    setTipos(nuevosTipos);
+    setGuardandoTipos(false);
+  };
 
   const procesar = useCallback(async (files) => {
     const items = Array.from(files).map((f) => ({
@@ -479,8 +455,7 @@ export default function App() {
       Observaciones: c.datos.observaciones || "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
-    const colWidths = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length, 14) }));
-    ws["!cols"] = colWidths;
+    ws["!cols"] = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length, 14) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Comprobantes");
     XLSX.writeFile(wb, `comprobantes_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -496,42 +471,40 @@ export default function App() {
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
-  // ── Pantalla configuración ──
+  // Header compartido
+  const Header = () => (
+    <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>D</div>
+        <div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Digitalizador de comprobantes</div>
+          <div style={{ color: "#7a9cc8", fontSize: 11 }}>Panel principal · IA integrada · Google Sheets</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
+        {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
+        <button onClick={() => setPantalla(pantalla === "config" ? "lista" : "config")}
+          style={{ background: pantalla === "config" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+          ⚙ Configuración
+        </button>
+        <div style={{ width: 34, height: 34, background: C.navyLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, border: `2px solid ${C.accent}` }}>HM</div>
+      </div>
+    </div>
+  );
+
   if (pantalla === "config") {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", height: 58, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
-          <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff", marginRight: 12 }}>D</div>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Digitalizador · Configuración</div>
-        </div>
-        <ConfigScreen tipos={tipos} onGuardar={(t) => { setTipos(t); }} onVolver={() => setPantalla("lista")} />
+        <Header />
+        <ConfigScreen tipos={tipos} onGuardar={handleGuardarTipos} onVolver={() => setPantalla("lista")} guardando={guardandoTipos} />
       </div>
     );
   }
 
-  // ── Pantalla principal ──
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-
-      {/* Header */}
-      <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>D</div>
-          <div>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Digitalizador de comprobantes</div>
-            <div style={{ color: "#7a9cc8", fontSize: 11 }}>Panel principal · IA integrada · Google Sheets</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
-          {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
-          <button onClick={() => setPantalla("config")}
-            style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-            ⚙ Configuración
-          </button>
-          <div style={{ width: 34, height: 34, background: C.navyLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, border: `2px solid ${C.accent}` }}>HM</div>
-        </div>
-      </div>
+      <Header />
 
       {/* Stats */}
       <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "14px 24px" }}>
@@ -554,7 +527,6 @@ export default function App() {
       <div style={{ padding: "20px 24px", maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: sel ? "1fr 440px" : "1fr", gap: 20, alignItems: "start" }}>
 
-          {/* LEFT */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Drop zone */}
@@ -638,7 +610,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* RIGHT — Detail panel */}
+          {/* RIGHT panel */}
           {sel && (
             <div style={{ position: "sticky", top: 76, borderRadius: 14, overflow: "hidden", boxShadow: C.shadowLg, maxHeight: "calc(100vh - 96px)", overflowY: "auto" }}>
               <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -755,10 +727,21 @@ export default function App() {
                 </div>
               )}
 
+              {/* Formulario edición — ahora incluye Tipo */}
               {sel.datos && editing && (
                 <div style={{ background: C.white, padding: "16px 20px" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: C.navy }}>✎ Editar campos</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+                    {/* Campo Tipo */}
+                    <div>
+                      <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Tipo de comprobante</div>
+                      <select value={editD.tipo || ""} onChange={(e) => setEditD((p) => ({ ...p, tipo: e.target.value }))}
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, color: C.text, background: C.bg }}>
+                        {tipos.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                      </select>
+                    </div>
+
                     {[
                       ["emisor_razon_social","Emisor razón social"],["emisor_cuit","CUIT Emisor"],
                       ["receptor_razon_social","Receptor / Nombre"],["receptor_cuit","CUIT Receptor"],
