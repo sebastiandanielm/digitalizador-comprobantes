@@ -14,11 +14,33 @@ const C = {
   shadowLg: "0 8px 32px rgba(0,0,0,0.13)",
 };
 
-const TIPO_LABELS = {
-  factura_a: "Factura A", factura_b: "Factura B", factura_c: "Factura C",
-  ticket: "Ticket Fiscal", servicio_publico: "Servicio Público",
-  recibo_sueldo: "Recibo de Sueldo", ddjj: "DDJJ", otro: "Otro",
-};
+const TIPOS_DEFAULT = [
+  { key: "factura_a",       label: "Factura A" },
+  { key: "factura_b",       label: "Factura B" },
+  { key: "factura_c",       label: "Factura C" },
+  { key: "ticket",          label: "Ticket Fiscal" },
+  { key: "servicio_publico",label: "Servicio Público" },
+  { key: "recibo_sueldo",   label: "Recibo de Sueldo" },
+  { key: "ddjj",            label: "Declaración Jurada" },
+  { key: "impuesto",        label: "Impuesto" },
+  { key: "otro",            label: "Otro" },
+];
+
+function useTipos() {
+  const [tipos, setTipos] = useState(() => {
+    try {
+      const saved = localStorage.getItem("tipos_comprobantes");
+      return saved ? JSON.parse(saved) : TIPOS_DEFAULT;
+    } catch { return TIPOS_DEFAULT; }
+  });
+
+  const guardarTipos = (nuevos) => {
+    setTipos(nuevos);
+    localStorage.setItem("tipos_comprobantes", JSON.stringify(nuevos));
+  };
+
+  return [tipos, guardarTipos];
+}
 
 const fmtPeso = (n) =>
   n != null && n !== "" && n !== 0
@@ -43,14 +65,121 @@ const Badge = ({ estado }) => {
   return <span style={{ background: c.bg, color: c.color, border: `1px solid ${c.color}44`, borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 700 }}>{c.label}</span>;
 };
 
-const TipoBadge = ({ tipo }) => (
-  <span style={{ background: C.accentBg, color: C.accentDark, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
-    {TIPO_LABELS[tipo] || tipo || "—"}
-  </span>
-);
+const TipoBadge = ({ tipo, tipos }) => {
+  const found = tipos.find((t) => t.key === tipo);
+  return (
+    <span style={{ background: C.accentBg, color: C.accentDark, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
+      {found?.label || tipo || "—"}
+    </span>
+  );
+};
+
+// ─── Pantalla de Configuración ────────────────────────────────────────────────
+function ConfigScreen({ tipos, onGuardar, onVolver }) {
+  const [lista, setLista] = useState(tipos.map((t) => ({ ...t })));
+  const [nuevoLabel, setNuevoLabel] = useState("");
+  const [guardado, setGuardado] = useState(false);
+
+  const actualizar = (i, label) => {
+    setLista((p) => p.map((t, idx) => idx === i ? { ...t, label } : t));
+  };
+
+  const eliminar = (i) => {
+    setLista((p) => p.filter((_, idx) => idx !== i));
+  };
+
+  const agregar = () => {
+    if (!nuevoLabel.trim()) return;
+    const key = nuevoLabel.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    setLista((p) => [...p, { key: key + "_" + Date.now(), label: nuevoLabel.trim() }]);
+    setNuevoLabel("");
+  };
+
+  const guardar = () => {
+    onGuardar(lista);
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 2000);
+  };
+
+  const restaurar = () => {
+    setLista(TIPOS_DEFAULT.map((t) => ({ ...t })));
+  };
+
+  return (
+    <div style={{ padding: "28px 24px", maxWidth: 700, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <button onClick={onVolver}
+          style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+          ← Volver
+        </button>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>⚙ Configuración</div>
+          <div style={{ color: C.textMuted, fontSize: 13 }}>Personalizá los tipos de comprobantes</div>
+        </div>
+      </div>
+
+      <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Tipos de comprobantes</span>
+          <button onClick={restaurar}
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textSec, borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            Restaurar valores originales
+          </button>
+        </div>
+
+        <div style={{ padding: "8px 0" }}>
+          {lista.map((t, i) => (
+            <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "monospace", minWidth: 160, background: C.bg, padding: "4px 8px", borderRadius: 4 }}>{t.key}</span>
+              <input
+                value={t.label}
+                onChange={(e) => actualizar(i, e.target.value)}
+                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 14, color: C.text, background: C.bg, fontWeight: 600 }}
+              />
+              <button onClick={() => eliminar(i)}
+                style={{ background: C.dangerBg, color: C.danger, border: `1px solid ${C.danger}33`, borderRadius: 7, padding: "7px 12px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Agregar nuevo tipo */}
+        <div style={{ padding: "16px 20px", borderTop: `2px solid ${C.border}`, background: C.bg }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Agregar nuevo tipo</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              value={nuevoLabel}
+              onChange={(e) => setNuevoLabel(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && agregar()}
+              placeholder="Ej: Flete, Materia Prima, Mantenimiento..."
+              style={{ flex: 1, padding: "9px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: C.white }}
+            />
+            <button onClick={agregar}
+              style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
+              + Agregar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Botón guardar */}
+      <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+        <button onClick={guardar}
+          style={{ flex: 1, background: guardado ? C.success : C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", transition: "background .3s" }}>
+          {guardado ? "✓ Guardado correctamente" : "💾 Guardar cambios"}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 14, background: C.accentBg, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.accentDark }}>
+        <strong>💡 Tip:</strong> Los cambios se guardan en este navegador. Si usás la app en otra PC, vas a ver los tipos originales hasta que los configures allá también.
+      </div>
+    </div>
+  );
+}
 
 // ─── API calls ────────────────────────────────────────────────────────────────
-async function procesarConClaude(file) {
+async function procesarConClaude(file, tipos) {
   const base64 = await new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result.split(",")[1]);
@@ -58,8 +187,14 @@ async function procesarConClaude(file) {
     r.readAsDataURL(file);
   });
   const isPdf = file.type === "application/pdf";
+  const tiposKeys = tipos.map((t) => `"${t.key}"`).join("|");
+  const tiposDesc = tipos.map((t) => `  - "${t.key}" = ${t.label}`).join("\n");
+
   const prompt = `Sos un sistema experto en comprobantes fiscales argentinos.
 Analizá el documento exhaustivamente y extraé TODA la información relevante.
+
+TIPOS DE COMPROBANTES DISPONIBLES:
+${tiposDesc}
 
 INSTRUCCIONES ESPECÍFICAS POR TIPO:
 
@@ -89,16 +224,19 @@ TICKETS FISCALES:
 DDJJ FORMULARIO 931 (SUSS/ARCA):
 - El "total" es la SUMA de la sección VIII únicamente
 - Los ítems son SOLO los conceptos de la sección VIII (montos a ingresar)
-- La "Detracción art. 23 Ley 27.541" NO es un ítem a pagar, es un ajuste interno ya descontado dentro de Contribuciones SS
-- NO incluyas detracciones, compensaciones ni retenciones como ítems separados
-- "neto_gravado" = Suma de remuneraciones (campo Suma de Rem.)
+- La "Detracción art. 23 Ley 27.541" NO es un ítem a pagar, es un ajuste interno ya descontado
+- NO incluyas detracciones, compensaciones ni retenciones como ítems
+- "neto_gravado" = Suma de remuneraciones
 - "periodo" = Mes-Año del formulario
 - "receptor_razon_social" = "AFIP - S.U.S.S."
 - En "observaciones" indicá cantidad de empleados y período
 
+IMPUESTOS (municipales, provinciales, nacionales):
+- Extraé el tipo de impuesto, período, vencimiento y monto a pagar
+- Usar "observaciones" para detalles adicionales
+
 OTRAS DDJJ (ARCA/AFIP):
 - Extraé período, tipo de declaración, importes declarados
-- Usar campo "observaciones" para detalles adicionales
 
 REGLAS GENERALES:
 - Confianza "alta": todos los campos principales están claros
@@ -106,10 +244,11 @@ REGLAS GENERALES:
 - Confianza "baja": documento ilegible o muy complejo
 - Si un campo no existe en el documento, usá null
 - Los montos siempre como números, sin símbolos ni puntos de miles
+- Elegí el tipo más específico disponible de la lista
 
 Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
-  "tipo": "factura_a"|"factura_b"|"factura_c"|"ticket"|"servicio_publico"|"recibo_sueldo"|"ddjj"|"otro",
+  "tipo": ${tiposKeys},
   "numero_comprobante": "string|null",
   "punto_venta": "string|null",
   "fecha_emision": "YYYY-MM-DD|null",
@@ -135,9 +274,11 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
   "observaciones": "string|null",
   "confianza": "alta"|"media"|"baja"
 }`;
+
   const block = isPdf
     ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
     : { type: "image", source: { type: "base64", media_type: file.type, data: base64 } };
+
   const resp = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -155,9 +296,7 @@ async function guardarEnSheets(comp) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "append", data: { nombre: comp.nombre, estado: comp.estado, ...comp.datos } }),
     });
-  } catch (e) {
-    console.error("Error guardando en Sheets:", e);
-  }
+  } catch (e) { console.error("Error guardando en Sheets:", e); }
 }
 
 async function eliminarDeSheets(rowIndex) {
@@ -168,10 +307,7 @@ async function eliminarDeSheets(rowIndex) {
       body: JSON.stringify({ action: "delete", rowIndex }),
     });
     return resp.ok;
-  } catch (e) {
-    console.error("Error eliminando de Sheets:", e);
-    return false;
-  }
+  } catch (e) { console.error("Error eliminando:", e); return false; }
 }
 
 async function cargarDeSheets() {
@@ -191,7 +327,7 @@ async function cargarDeSheets() {
       estado: row[20] || "procesado",
       fileUrl: null,
       datos: {
-        tipo: Object.keys(TIPO_LABELS).find((k) => TIPO_LABELS[k] === row[1]) || "otro",
+        tipo: row[1] ? row[1].toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") : "otro",
         numero_comprobante: row[2] || null,
         punto_venta: row[3] || null,
         fecha_emision: row[4] || null,
@@ -211,14 +347,10 @@ async function cargarDeSheets() {
         empleado_nombre: row[18] || null,
         empleado_cuil: row[19] || null,
         observaciones: row[21] || null,
-        items: [],
-        confianza: "alta",
+        items: [], confianza: "alta",
       },
     }));
-  } catch (e) {
-    console.error("Error cargando de Sheets:", e);
-    return [];
-  }
+  } catch (e) { console.error("Error cargando:", e); return []; }
 }
 
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
@@ -228,23 +360,21 @@ const Div = ({ label }) => (
     <div style={{ flex: 1, height: 1, background: C.border }} />
   </div>
 );
-
 const F = ({ l, v, bold }) => (
   <div>
     <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{l}</div>
     <div style={{ fontSize: 13, fontWeight: bold ? 700 : 400, color: v ? C.text : C.textMuted }}>{v || "—"}</div>
   </div>
 );
-
 const Grid2 = ({ a, b }) => (
   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-    <F l={a.l} v={a.v} />
-    <F l={b.l} v={b.v} />
+    <F l={a.l} v={a.v} /><F l={b.l} v={b.v} />
   </div>
 );
 
 // ─── App principal ────────────────────────────────────────────────────────────
 export default function App() {
+  const [tipos, setTipos]       = useTipos();
   const [comp, setComp]         = useState([]);
   const [drag, setDrag]         = useState(false);
   const [selId, setSelId]       = useState(null);
@@ -254,8 +384,9 @@ export default function App() {
   const [editing, setEditing]   = useState(false);
   const [editD, setEditD]       = useState({});
   const [cargando, setCargando] = useState(true);
-  const [eliminando, setEliminando] = useState(false);
+  const [eliminando, setEliminando]           = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
+  const [pantalla, setPantalla] = useState("lista"); // "lista" | "config"
   const fileRef = useRef();
 
   useEffect(() => {
@@ -264,23 +395,18 @@ export default function App() {
 
   const procesar = useCallback(async (files) => {
     const items = Array.from(files).map((f) => ({
-      id: crypto.randomUUID(),
-      sheetRowIndex: null,
-      nombre: f.name,
-      estado: "procesando",
-      datos: null,
-      error: null,
-      file: f,
-      fileUrl: URL.createObjectURL(f),
+      id: crypto.randomUUID(), sheetRowIndex: null,
+      nombre: f.name, estado: "procesando",
+      datos: null, error: null,
+      file: f, fileUrl: URL.createObjectURL(f),
     }));
     setComp((p) => [...items, ...p]);
     for (const item of items) {
       try {
-        const datos = await procesarConClaude(item.file);
+        const datos = await procesarConClaude(item.file, tipos);
         const estado = datos.confianza === "baja" ? "revisar" : "procesado";
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
-        // Recargar para obtener el índice correcto de la fila en Sheets
         const refreshed = await cargarDeSheets();
         setComp((p) => {
           const sinSheet = p.filter((c) => !c.id.startsWith("sheet-"));
@@ -290,7 +416,7 @@ export default function App() {
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado: "error", error: e.message } : c));
       }
     }
-  }, []);
+  }, [tipos]);
 
   const onDrop = useCallback((e) => {
     e.preventDefault(); setDrag(false);
@@ -301,18 +427,12 @@ export default function App() {
     if (!sel) return;
     setEliminando(true);
     try {
-      if (sel.sheetRowIndex !== null) {
-        await eliminarDeSheets(sel.sheetRowIndex);
-      }
+      if (sel.sheetRowIndex !== null) await eliminarDeSheets(sel.sheetRowIndex);
       setComp((p) => p.filter((c) => c.id !== selId));
-      setSelId(null);
-      setConfirmarEliminar(false);
-      // Recargar índices
+      setSelId(null); setConfirmarEliminar(false);
       const refreshed = await cargarDeSheets();
       setComp(refreshed);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
     setEliminando(false);
   };
 
@@ -335,16 +455,28 @@ export default function App() {
 
   const exportExcel = () => {
     const rows = withData.map((c) => ({
-      Archivo: c.nombre, Tipo: TIPO_LABELS[c.datos.tipo] || c.datos.tipo,
-      "N° Comprobante": c.datos.numero_comprobante || "", "Punto de Venta": c.datos.punto_venta || "",
-      "Fecha Emisión": c.datos.fecha_emision || "", "Fecha Venc.": c.datos.fecha_vencimiento || "",
-      Emisor: c.datos.emisor_razon_social || "", "CUIT Emisor": c.datos.emisor_cuit || "",
-      Receptor: c.datos.receptor_razon_social || "", "CUIT Receptor": c.datos.receptor_cuit || "",
-      "Neto Gravado": c.datos.neto_gravado ?? "", "IVA %": c.datos.iva_alicuota ?? "", "IVA $": c.datos.iva_importe ?? "",
-      Percepciones: c.datos.percepciones ?? "", "Otros Tributos": c.datos.otros_tributos ?? "",
-      Total: c.datos.total ?? "", Moneda: c.datos.moneda || "ARS", Período: c.datos.periodo || "",
-      Empleado: c.datos.empleado_nombre || "", CUIL: c.datos.empleado_cuil || "",
-      Estado: c.estado, Observaciones: c.datos.observaciones || "",
+      Archivo: c.nombre,
+      Tipo: tipos.find((t) => t.key === c.datos.tipo)?.label || c.datos.tipo,
+      "N° Comprobante": c.datos.numero_comprobante || "",
+      "Punto de Venta": c.datos.punto_venta || "",
+      "Fecha Emisión": c.datos.fecha_emision || "",
+      "Fecha Venc.": c.datos.fecha_vencimiento || "",
+      Emisor: c.datos.emisor_razon_social || "",
+      "CUIT Emisor": c.datos.emisor_cuit || "",
+      Receptor: c.datos.receptor_razon_social || "",
+      "CUIT Receptor": c.datos.receptor_cuit || "",
+      "Neto Gravado": c.datos.neto_gravado ?? "",
+      "IVA %": c.datos.iva_alicuota ?? "",
+      "IVA $": c.datos.iva_importe ?? "",
+      Percepciones: c.datos.percepciones ?? "",
+      "Otros Tributos": c.datos.otros_tributos ?? "",
+      Total: c.datos.total ?? "",
+      Moneda: c.datos.moneda || "ARS",
+      Período: c.datos.periodo || "",
+      Empleado: c.datos.empleado_nombre || "",
+      CUIL: c.datos.empleado_cuil || "",
+      Estado: c.estado,
+      Observaciones: c.datos.observaciones || "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const colWidths = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length, 14) }));
@@ -364,6 +496,20 @@ export default function App() {
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
+  // ── Pantalla configuración ──
+  if (pantalla === "config") {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
+        <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", height: 58, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+          <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff", marginRight: 12 }}>D</div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Digitalizador · Configuración</div>
+        </div>
+        <ConfigScreen tipos={tipos} onGuardar={(t) => { setTipos(t); }} onVolver={() => setPantalla("lista")} />
+      </div>
+    );
+  }
+
+  // ── Pantalla principal ──
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
 
@@ -377,8 +523,12 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando historial…</span>}
+          {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
           {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
+          <button onClick={() => setPantalla("config")}
+            style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+            ⚙ Configuración
+          </button>
           <div style={{ width: 34, height: 34, background: C.navyLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, border: `2px solid ${C.accent}` }}>HM</div>
         </div>
       </div>
@@ -430,7 +580,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <select value={fTipo} onChange={(e) => setFTipo(e.target.value)} style={ss}>
                   <option value="todos">Todos los tipos</option>
-                  {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  {tipos.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </select>
                 <select value={fEst} onChange={(e) => setFEst(e.target.value)} style={ss}>
                   <option value="todos">Todos los estados</option>
@@ -459,7 +609,7 @@ export default function App() {
                 </thead>
                 <tbody>
                   {cargando ? (
-                    <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando historial desde Google Sheets…</td></tr>
+                    <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando historial…</td></tr>
                   ) : filtrados.length === 0 ? (
                     <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{comp.length === 0 ? "Cargá comprobantes para comenzar" : "Sin resultados"}</td></tr>
                   ) : filtrados.map((c) => (
@@ -474,7 +624,7 @@ export default function App() {
                           : <><div style={{ fontWeight: 600 }}>{c.datos?.emisor_razon_social || c.nombre}</div>
                              {c.datos?.emisor_cuit && <div style={{ fontSize: 11, color: C.textMuted }}>CUIT {c.datos.emisor_cuit}</div>}</>}
                       </td>
-                      <td style={tdS}>{c.datos ? <TipoBadge tipo={c.datos.tipo} /> : "—"}</td>
+                      <td style={tdS}>{c.datos ? <TipoBadge tipo={c.datos.tipo} tipos={tipos} /> : "—"}</td>
                       <td style={{ ...tdS, fontFamily: "monospace", color: C.textSec, fontSize: 12 }}>{c.datos?.numero_comprobante || "—"}</td>
                       <td style={{ ...tdS, color: C.textSec }}>{fmtFecha(c.datos?.fecha_emision)}</td>
                       <td style={tdS}>{fmtPeso(c.datos?.neto_gravado)}</td>
@@ -491,20 +641,17 @@ export default function App() {
           {/* RIGHT — Detail panel */}
           {sel && (
             <div style={{ position: "sticky", top: 76, borderRadius: 14, overflow: "hidden", boxShadow: C.shadowLg, maxHeight: "calc(100vh - 96px)", overflowY: "auto" }}>
-
-              {/* Header del panel */}
               <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1, marginRight: 10 }}>
                   <div style={{ color: C.accent, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Detalle del comprobante</div>
                   <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.4 }}>
-                    {sel.datos ? `${TIPO_LABELS[sel.datos.tipo] || sel.datos.tipo}${sel.datos.numero_comprobante ? " · " + sel.datos.numero_comprobante : ""} · ${sel.datos.emisor_razon_social || sel.nombre}` : sel.nombre}
+                    {sel.datos ? `${tipos.find((t) => t.key === sel.datos.tipo)?.label || sel.datos.tipo}${sel.datos.numero_comprobante ? " · " + sel.datos.numero_comprobante : ""} · ${sel.datos.emisor_razon_social || sel.nombre}` : sel.nombre}
                   </div>
                 </div>
                 <button onClick={() => { setSelId(null); setEditing(false); setConfirmarEliminar(false); }}
                   style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* Texto original */}
               {sel.datos?.texto_original && (
                 <div style={{ background: "#f8fafc", borderBottom: `1px solid ${C.border}`, padding: "14px 20px" }}>
                   <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>Documento original</div>
@@ -514,7 +661,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Preview */}
               {sel.fileUrl && !sel.datos?.texto_original && (
                 <div style={{ background: "#f8fafc", borderBottom: `1px solid ${C.border}` }}>
                   {sel.nombre.toLowerCase().endsWith(".pdf")
@@ -523,7 +669,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Datos extraídos */}
               {sel.datos && !editing && (
                 <div style={{ background: C.white, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -532,15 +677,12 @@ export default function App() {
                       Confianza {sel.datos.confianza}
                     </span>
                   </div>
-
-                  <Grid2 a={{ l: "Tipo", v: TIPO_LABELS[sel.datos.tipo] || sel.datos.tipo }} b={{ l: "N° Comprobante", v: sel.datos.numero_comprobante }} />
+                  <Grid2 a={{ l: "Tipo", v: tipos.find((t) => t.key === sel.datos.tipo)?.label || sel.datos.tipo }} b={{ l: "N° Comprobante", v: sel.datos.numero_comprobante }} />
                   <Grid2 a={{ l: "Fecha emisión", v: fmtFecha(sel.datos.fecha_emision) }} b={{ l: "Vencimiento", v: fmtFecha(sel.datos.fecha_vencimiento) }} />
                   {sel.datos.periodo && <F l="Período" v={sel.datos.periodo} />}
-
                   <Div label="Emisor" />
                   <F l="Razón social" v={sel.datos.emisor_razon_social} bold />
                   <Grid2 a={{ l: "CUIT", v: sel.datos.emisor_cuit }} b={{ l: "Domicilio", v: sel.datos.emisor_domicilio }} />
-
                   <Div label="Receptor" />
                   <F l="Nombre / Razón social" v={sel.datos.receptor_razon_social || sel.datos.empleado_nombre} bold />
                   <Grid2 a={{ l: "CUIT / CUIL", v: sel.datos.receptor_cuit || sel.datos.empleado_cuil }} b={{ l: "Domicilio", v: sel.datos.receptor_domicilio }} />
@@ -585,13 +727,11 @@ export default function App() {
 
                   {sel.datos.observaciones && <F l="Observaciones" v={sel.datos.observaciones} />}
 
-                  {/* Botones de acción */}
                   <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
                     {sel.estado === "revisar" && <button onClick={() => aprobar(sel.id)} style={btnS(C.accent)}>✓ Aprobar</button>}
                     <button onClick={() => { setEditing(true); setEditD({ ...sel.datos }); }} style={btnS("#6c757d")}>✎ Editar</button>
                   </div>
 
-                  {/* Botón eliminar */}
                   {!confirmarEliminar ? (
                     <button onClick={() => setConfirmarEliminar(true)}
                       style={{ width: "100%", background: "transparent", color: C.danger, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
@@ -599,9 +739,7 @@ export default function App() {
                     </button>
                   ) : (
                     <div style={{ background: C.dangerBg, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "14px", textAlign: "center" }}>
-                      <div style={{ color: C.danger, fontWeight: 700, marginBottom: 10, fontSize: 13 }}>
-                        ¿Confirmás que querés eliminar este comprobante?
-                      </div>
+                      <div style={{ color: C.danger, fontWeight: 700, marginBottom: 10, fontSize: 13 }}>¿Confirmás que querés eliminar este comprobante?</div>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button onClick={eliminarComprobante} disabled={eliminando}
                           style={{ flex: 1, background: C.danger, color: "#fff", border: "none", borderRadius: 7, padding: "9px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
@@ -617,7 +755,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Formulario edición */}
               {sel.datos && editing && (
                 <div style={{ background: C.white, padding: "16px 20px" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: C.navy }}>✎ Editar campos</div>
