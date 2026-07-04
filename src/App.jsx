@@ -200,16 +200,22 @@ EXTRACTO BANCARIO (Banco Credicoop y otros bancos):
 - "numero_comprobante" = número de cuenta o número de resumen
 - "fecha_emision" = fecha del resumen
 - "periodo" = período que cubre el resumen (ej: "Junio 2026")
-- "total" = total de débitos/cargos del período
-- Extraé CADA concepto como un ítem separado en "items":
-  · Comisiones de mantenimiento
-  · Impuesto al débito (0.6%)
-  · Impuesto al crédito (0.6%)  
-  · Seguros asociados a la cuenta
-  · Gastos de transferencias
-  · Cualquier otro cargo o débito
-- En "observaciones" indicá el número de cuenta y tipo de cuenta
-- NO incluyas los movimientos de depósitos o acreditaciones como ítems, solo los COSTOS (débitos, comisiones, impuestos)
+- "total" = suma SOLO de los costos bancarios propios (NO incluir débitos automáticos de servicios)
+- Extraé SOLO estos conceptos como ítems:
+  · Comisiones de mantenimiento de cuenta (módulo NyP, etc.)
+  · IVA sobre comisiones y gastos bancarios
+  · Percepciones IVA sobre comisiones
+  · Comisiones por transferencias
+  · Mantenimiento de tarjetas bancarias
+  · Impuesto Ley 25.413 sobre débitos (0.6%)
+  · Crédito fiscal a compensar (como ítem negativo)
+  · Recaudación SIRCREB
+  · Seguros exigidos directamente por el banco SIN factura propia (ej: Seguro Protección Robo Cajero, seguros de cuenta)
+- NO incluyas como ítems los débitos automáticos de servicios externos que tienen su propia factura:
+  · Servicios de telefonía, internet, streaming (Personal Flow, Pay Per Tic, etc.)
+  · Seguros de terceros con factura propia (CNP Assurances, Federación Patronal, Mercantil Andina, etc.)
+  · Cualquier débito automático de un proveedor externo que emite factura por separado
+- En "observaciones" indicá el número de cuenta, tipo de cuenta y listá los débitos automáticos excluidos
 
 REGLAS GENERALES:
 - Elegí el tipo más específico disponible de la lista
