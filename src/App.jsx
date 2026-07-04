@@ -207,8 +207,9 @@ EXTRACTO BANCARIO (Banco Credicoop y otros bancos):
   · Percepciones IVA sobre comisiones
   · Comisiones por transferencias
   · Mantenimiento de tarjetas bancarias
-  · Impuesto Ley 25.413 sobre débitos (0.6%)
-  · Crédito fiscal a compensar (como ítem negativo)
+  · Impuesto Ley 25.413 s/Débitos (0.6% sobre débitos bancarios) — monto SIEMPRE POSITIVO
+  · Impuesto Ley 25.413 s/Créditos (0.6% sobre acreditaciones bancarias) — monto SIEMPRE POSITIVO, aunque diga "créditos" es un cobro real del banco, NUNCA negativo
+  · NUNCA uses montos negativos en ítems del extracto bancario salvo que el documento diga explícitamente "devolución" o "reintegro"
   · Recaudación SIRCREB
   · Seguros exigidos directamente por el banco SIN factura propia (ej: Seguro Protección Robo Cajero, seguros de cuenta)
 - NO incluyas como ítems los débitos automáticos de servicios externos que tienen su propia factura:
