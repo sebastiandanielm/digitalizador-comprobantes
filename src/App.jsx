@@ -193,6 +193,24 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 IMPUESTOS (municipales, provinciales, nacionales):
 - Extraé tipo de impuesto, período, vencimiento y monto a pagar
 
+EXTRACTO BANCARIO (Banco Credicoop y otros bancos):
+- "emisor_razon_social" = nombre del banco
+- "emisor_cuit" = CUIT del banco (Credicoop: 30-57142763-9)
+- "receptor_razon_social" = nombre del titular de la cuenta
+- "numero_comprobante" = número de cuenta o número de resumen
+- "fecha_emision" = fecha del resumen
+- "periodo" = período que cubre el resumen (ej: "Junio 2026")
+- "total" = total de débitos/cargos del período
+- Extraé CADA concepto como un ítem separado en "items":
+  · Comisiones de mantenimiento
+  · Impuesto al débito (0.6%)
+  · Impuesto al crédito (0.6%)  
+  · Seguros asociados a la cuenta
+  · Gastos de transferencias
+  · Cualquier otro cargo o débito
+- En "observaciones" indicá el número de cuenta y tipo de cuenta
+- NO incluyas los movimientos de depósitos o acreditaciones como ítems, solo los COSTOS (débitos, comisiones, impuestos)
+
 REGLAS GENERALES:
 - Elegí el tipo más específico disponible de la lista
 - Si un campo no existe, usá null
