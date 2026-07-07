@@ -19,15 +19,60 @@ export default async function handler(req, res) {
     }
 
     if (action === 'append') {
+      const d = data;
       const row = [
-        data.nombre||'', data.tipo||'', data.numero_comprobante||'',
-        data.punto_venta||'', data.fecha_emision||'', data.fecha_vencimiento||'',
-        data.emisor_razon_social||'', data.emisor_cuit||'',
-        data.receptor_razon_social||'', data.receptor_cuit||'',
-        data.neto_gravado??'', data.iva_alicuota??'', data.iva_importe??'',
-        data.percepciones??'', data.otros_tributos??'', data.total??'',
-        data.moneda||'ARS', data.periodo||'', data.empleado_nombre||'',
-        data.empleado_cuil||'', data.estado||'', data.observaciones||''
+        // A-W: Base (todas las facturas)
+        d.nombre||'',                    // A: Archivo
+        d.tipo||'',                      // B: Tipo
+        d.numero_comprobante||'',        // C: Nº comprobante
+        d.punto_venta||'',              // D: Punto de venta
+        d.fecha_emision||'',            // E: Fecha emisión
+        d.fecha_vencimiento||'',        // F: Fecha Vto
+        d.emisor_razon_social||'',      // G: Emisor
+        d.emisor_cuit||'',              // H: CUIT emisor
+        d.receptor_razon_social||'',    // I: Receptor
+        d.receptor_cuit||'',            // J: CUIT receptor
+        d.neto_gravado??'',             // K: Neto gravado
+        d.iva_105??'',                  // L: IVA 10.5%
+        d.iva_21??'',                   // M: IVA 21%
+        d.iva_27??'',                   // N: IVA 27%
+        d.percepciones??'',             // O: Percepciones
+        d.otros_tributos??'',           // P: Otros tributos
+        d.total??'',                    // Q: Total
+        d.moneda||'ARS',                // R: Moneda
+        d.periodo||'',                  // S: Período
+        d.empleado_nombre||'',          // T: Empleado
+        d.empleado_cuil||'',            // U: CUIL
+        d.estado||'',                   // V: Estado
+        d.observaciones||'',            // W: Observaciones
+        // X-Y: Facturas
+        d.condicion_venta||'',          // X: Condición de venta
+        d.cae||'',                      // Y: CAE
+        // Z-AC: DDJJ Form. 931
+        d.contribuciones_ss??'',        // Z: Contribuciones SS
+        d.aportes_ss??'',               // AA: Aportes SS
+        d.lrt??'',                      // AB: LRT
+        d.seguro_vida??'',              // AC: Seguro vida obligatorio
+        // AD-AJ: DDJJ IIBB
+        d.jurisdiccion||'',             // AD: Jurisdicción
+        d.anticipo_imp_determinado??'', // AE: Anticipo Imp. Determinado
+        d.valores_restan??'',           // AF: Valores Restan
+        d.valores_suman??'',            // AG: Valores Suman
+        d.a_favor_contribuyente??'',    // AH: A favor Contribuyente
+        d.a_favor_fisco??'',            // AI: A favor Fisco
+        d.a_pagar??'',                  // AJ: A Pagar
+        // AK-AN: Extracto Bancario
+        d.comisiones_bancarias??'',     // AK: Comisiones Bancarias
+        d.impuestos_debito_credito??'', // AL: Impuestos Débito/Crédito
+        d.percepcion_sircreb??'',       // AM: Percepción SIRCREB
+        d.seguros_bancarios??'',        // AN: Seguros Bancarios
+        // AO-AT: DDJJ IVA
+        d.debito_fiscal??'',            // AO: Total débito fiscal
+        d.credito_fiscal??'',           // AP: Total crédito fiscal
+        d.saldo_tecnico_anterior??'',   // AQ: Saldo técnico anterior
+        d.saldo_tecnico??'',            // AR: Saldo técnico
+        d.retenciones_pagos_cuenta??'', // AS: Retenciones/percepciones/pagos a cuenta
+        d.saldo_libre_disponibilidad??'',// AT: Saldo libre disponibilidad
       ];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
@@ -67,7 +112,7 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
-    // ── Configuración de tipos ────────────────────────────────────────────────
+    // ── Configuración ─────────────────────────────────────────────────────────
 
     if (action === 'get_tipos') {
       const r = await fetch(
@@ -127,7 +172,6 @@ export default async function handler(req, res) {
     }
 
     if (action === 'update_contacto') {
-      // Actualiza una fila específica (rowIndex = índice en array, sin contar encabezado)
       const c = data;
       const row = [
         c.id||'', c.cuit||'', c.razon_social||'', c.tipo||'',
@@ -137,7 +181,7 @@ export default async function handler(req, res) {
         c.condicion_iva||'', c.cbu||'', c.banco||'', c.alias||'',
         c.preferencia_cheque||'', c.notas||''
       ];
-      const sheetRow = rowIndex + 2; // +1 encabezado, +1 base 1
+      const sheetRow = rowIndex + 2;
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A${sheetRow}:T${sheetRow}?valueInputOption=RAW`,
         {
@@ -176,7 +220,6 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
-    // Buscar contacto por CUIT o nombre (para el clasificador)
     if (action === 'buscar_contacto') {
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos`,
@@ -185,40 +228,17 @@ export default async function handler(req, res) {
       const sheetData = await r.json();
       const rows = sheetData.values || [];
       if (rows.length <= 1) return res.status(200).json({ encontrado: false });
-
       const { cuit, nombre } = data;
       const dataRows = rows.slice(1);
-
-      // Buscar por CUIT primero
       if (cuit) {
         const cuitLimpio = cuit.replace(/[-\s]/g, '');
-        const match = dataRows.find(row => {
-          const rowCuit = (row[1] || '').replace(/[-\s]/g, '');
-          return rowCuit === cuitLimpio;
-        });
-        if (match) {
-          return res.status(200).json({
-            encontrado: true,
-            contacto: rowToContacto(match)
-          });
-        }
+        const match = dataRows.find(row => (row[1]||'').replace(/[-\s]/g,'') === cuitLimpio);
+        if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match) });
       }
-
-      // Buscar por nombre si no encontró por CUIT
       if (nombre) {
-        const nombreLower = nombre.toLowerCase();
-        const match = dataRows.find(row =>
-          (row[2] || '').toLowerCase().includes(nombreLower)
-        );
-        if (match) {
-          return res.status(200).json({
-            encontrado: true,
-            contacto: rowToContacto(match),
-            matchPorNombre: true
-          });
-        }
+        const match = dataRows.find(row => (row[2]||'').toLowerCase().includes(nombre.toLowerCase()));
+        if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match), matchPorNombre: true });
       }
-
       return res.status(200).json({ encontrado: false });
     }
 
@@ -258,7 +278,7 @@ async function getToken(sa) {
     false, ['sign']
   );
   const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signingInput));
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const sig = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
   const jwt = `${signingInput}.${sig}`;
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
