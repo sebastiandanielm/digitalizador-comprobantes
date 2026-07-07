@@ -175,7 +175,11 @@ FACTURAS DE SERVICIOS PÚBLICOS (Edenor, Edesur, AySA, gas, etc.):
 
 FACTURAS A/B/C DE PROVEEDORES:
 - Extraé TODOS los ítems con cantidad, unidad, precio unitario y subtotal
-- Identificá neto gravado, alícuota de IVA y su importe
+- "iva_105" = importe IVA al 10.5% si existe
+- "iva_21" = importe IVA al 21% si existe
+- "iva_27" = importe IVA al 27% si existe
+- "condicion_venta" = condición de pago (contado, cuenta corriente, etc.)
+- "cae" = número de CAE y fecha de vencimiento
 - Extraé percepciones de IIBB y otros tributos por separado
 
 RECIBOS DE SUELDO:
@@ -184,7 +188,11 @@ RECIBOS DE SUELDO:
 - "total" es el neto a cobrar
 
 DDJJ FORMULARIO 931 (SUSS/ARCA):
-- El "total" es la SUMA de la sección VIII únicamente
+- "total" = suma de la sección VIII únicamente
+- "contribuciones_ss" = Contribuciones de Seguridad Social (ítem 351)
+- "aportes_ss" = Aportes de Seguridad Social (ítem 301)
+- "lrt" = L.R.T. a pagar (ítem 312)
+- "seguro_vida" = Seguro Colectivo de Vida Obligatorio (ítem 028)
 - Los ítems son SOLO los conceptos de la sección VIII
 - La "Detracción art. 23 Ley 27.541" NO es un ítem, es un ajuste interno ya descontado
 - "neto_gravado" = Suma de remuneraciones
@@ -193,30 +201,44 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 IMPUESTOS (municipales, provinciales, nacionales):
 - Extraé tipo de impuesto, período, vencimiento y monto a pagar
 
+DDJJ IIBB (Ingresos Brutos / Convenio Multilateral):
+- "jurisdiccion" = provincia o "Convenio Multilateral"
+- "anticipo_imp_determinado" = impuesto determinado del período
+- "valores_restan" = anticipos/pagos que restan
+- "valores_suman" = recargos/intereses que suman
+- "a_favor_contribuyente" = saldo a favor del contribuyente
+- "a_favor_fisco" = saldo a favor del fisco (a pagar)
+- "a_pagar" = monto final a ingresar
+- "total" = monto final a pagar (igual a "a_pagar")
+
+DDJJ IVA (ARCA):
+- "debito_fiscal" = total débito fiscal del período
+- "credito_fiscal" = total crédito fiscal del período
+- "saldo_tecnico_anterior" = saldo técnico a favor del período anterior
+- "saldo_tecnico" = saldo técnico resultante del período
+- "retenciones_pagos_cuenta" = total retenciones, percepciones y pagos a cuenta
+- "saldo_libre_disponibilidad" = saldo de libre disponibilidad a favor del contribuyente
+- "total" = monto a pagar (0 si hay saldo a favor)
+
 EXTRACTO BANCARIO (Banco Credicoop y otros bancos):
 - "emisor_razon_social" = nombre del banco
 - "emisor_cuit" = CUIT del banco (Credicoop: 30-57142763-9)
 - "receptor_razon_social" = nombre del titular de la cuenta
 - "numero_comprobante" = número de cuenta o número de resumen
 - "fecha_emision" = fecha del resumen
-- "periodo" = período que cubre el resumen (ej: "Junio 2026")
-- "total" = suma SOLO de los costos bancarios propios (NO incluir débitos automáticos de servicios)
-- Extraé SOLO estos conceptos como ítems:
-  · Comisiones de mantenimiento de cuenta (módulo NyP, etc.)
-  · IVA sobre comisiones y gastos bancarios
-  · Percepciones IVA sobre comisiones
-  · Comisiones por transferencias
-  · Mantenimiento de tarjetas bancarias
-  · Impuesto Ley 25.413 s/Débitos (0.6% sobre débitos bancarios) — monto SIEMPRE POSITIVO
-  · Impuesto Ley 25.413 s/Créditos (0.6% sobre acreditaciones bancarias) — monto SIEMPRE POSITIVO, aunque diga "créditos" es un cobro real del banco, NUNCA negativo
-  · NUNCA uses montos negativos en ítems del extracto bancario salvo que el documento diga explícitamente "devolución" o "reintegro"
-  · Recaudación SIRCREB
-  · Seguros exigidos directamente por el banco SIN factura propia (ej: Seguro Protección Robo Cajero, seguros de cuenta)
-- NO incluyas como ítems los débitos automáticos de servicios externos que tienen su propia factura:
+- "periodo" = período que cubre el resumen (ej: "Enero 2026")
+- "comisiones_bancarias" = suma de comisiones mantenimiento + transferencias + tarjetas
+- "impuestos_debito_credito" = suma Ley 25.413 s/débitos + s/créditos (SIEMPRE POSITIVO)
+- "percepcion_sircreb" = Recaudación SIRCREB + Percepción IVA RG 2408
+- "seguros_bancarios" = seguros exigidos por el banco sin factura propia
+- "iva_21" = IVA Débito Fiscal sobre comisiones bancarias
+- "total" = comisiones_bancarias + impuestos_debito_credito + percepcion_sircreb + seguros_bancarios + iva_21
+- Extraé cada concepto como ítem en "items" — NUNCA montos negativos salvo "devolución" o "reintegro"
+- EXCLUIR completamente de ítems y del total los débitos automáticos de servicios externos:
   · Servicios de telefonía, internet, streaming (Personal Flow, Pay Per Tic, etc.)
   · Seguros de terceros con factura propia (CNP Assurances, Federación Patronal, Mercantil Andina, etc.)
-  · Cualquier débito automático de un proveedor externo que emite factura por separado
-- En "observaciones" indicá el número de cuenta, tipo de cuenta y listá los débitos automáticos excluidos
+  · Cualquier débito automático de proveedor externo que emite factura por separado
+- En "observaciones" indicá número de cuenta y listá los débitos automáticos excluidos
 
 REGLAS GENERALES:
 - Elegí el tipo más específico disponible de la lista
@@ -237,18 +259,42 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
   "receptor_cuit": "string|null",
   "receptor_domicilio": "string|null",
   "neto_gravado": number|null,
-  "iva_alicuota": number|null,
-  "iva_importe": number|null,
+  "iva_105": number|null,
+  "iva_21": number|null,
+  "iva_27": number|null,
   "percepciones": number|null,
   "otros_tributos": number|null,
   "total": number|null,
   "moneda": "ARS"|"USD"|"EUR"|"otro",
-  "items": [{"descripcion":"string","cantidad":number|null,"unidad":"string|null","precio_unitario":number|null,"subtotal":number|null}],
   "periodo": "string|null",
   "empleado_nombre": "string|null",
   "empleado_cuil": "string|null",
-  "texto_original": "resumen del texto clave en max 500 caracteres",
   "observaciones": "string|null",
+  "condicion_venta": "string|null",
+  "cae": "string|null",
+  "contribuciones_ss": number|null,
+  "aportes_ss": number|null,
+  "lrt": number|null,
+  "seguro_vida": number|null,
+  "jurisdiccion": "string|null",
+  "anticipo_imp_determinado": number|null,
+  "valores_restan": number|null,
+  "valores_suman": number|null,
+  "a_favor_contribuyente": number|null,
+  "a_favor_fisco": number|null,
+  "a_pagar": number|null,
+  "comisiones_bancarias": number|null,
+  "impuestos_debito_credito": number|null,
+  "percepcion_sircreb": number|null,
+  "seguros_bancarios": number|null,
+  "debito_fiscal": number|null,
+  "credito_fiscal": number|null,
+  "saldo_tecnico_anterior": number|null,
+  "saldo_tecnico": number|null,
+  "retenciones_pagos_cuenta": number|null,
+  "saldo_libre_disponibilidad": number|null,
+  "items": [{"descripcion":"string","cantidad":number|null,"unidad":"string|null","precio_unitario":number|null,"subtotal":number|null}],
+  "texto_original": "resumen del texto clave en max 500 caracteres",
   "confianza": "alta"|"media"|"baja"
 }`;
 
