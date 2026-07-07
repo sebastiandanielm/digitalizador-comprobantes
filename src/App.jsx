@@ -203,10 +203,33 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 - "neto_gravado" = Suma de remuneraciones
 - "periodo" = Mes-Año del formulario (ej: "04/2026")
 
+CERTIFICADO DE RETENCIÓN GANANCIAS:
+- "tipo" = el tipo que corresponda a "Retención Ganancias" de la lista disponible
+- "emisor_razon_social" = quien emite el certificado y hace la retención (el cliente que pagó)
+- "emisor_cuit" = CUIT del agente de retención (quien emite)
+- "receptor_razon_social" = el sujeto retenido (quien recibe el pago y sufre la retención)
+- "receptor_cuit" = CUIT del sujeto retenido
+- "numero_comprobante" = número del certificado de retención
+- "fecha_emision" = fecha del certificado
+- "total" = monto retenido (el importe efectivamente retenido, NO el monto del comprobante original)
+- "neto_gravado" = monto sujeto a retención/percepción
+- "observaciones" = impuesto, régimen, alícuota, comprobante que origina la retención
+
+CERTIFICADO DE RETENCIÓN IIBB (Ingresos Brutos):
+- "tipo" = el tipo que corresponda a "Retención IIBB" de la lista disponible
+- "emisor_razon_social" = quien emite el certificado y hace la retención (el cliente que pagó)
+- "emisor_cuit" = CUIT del agente de retención
+- "receptor_razon_social" = el sujeto retenido
+- "receptor_cuit" = CUIT del sujeto retenido
+- "numero_comprobante" = número del certificado
+- "fecha_emision" = fecha del certificado
+- "total" = monto retenido
+- "neto_gravado" = monto sujeto a retención
+- "jurisdiccion" = provincia o "Convenio Multilateral"
+- "observaciones" = régimen, alícuota, comprobante que origina la retención
+
 IMPUESTOS (municipales, provinciales, nacionales):
 - Extraé tipo de impuesto, período, vencimiento y monto a pagar
-
-DDJJ IIBB (Ingresos Brutos / Convenio Multilateral):
 - "emisor_razon_social" = "ARBA" o "Comisión Arbitral" según corresponda (el organismo, NUNCA el contribuyente)
 - "receptor_razon_social" = nombre del contribuyente
 - "receptor_cuit" = CUIT del contribuyente
