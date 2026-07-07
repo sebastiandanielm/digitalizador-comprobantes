@@ -205,19 +205,19 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 
 CERTIFICADO DE RETENCIÓN GANANCIAS:
 - "tipo" = el tipo que corresponda a "Retención Ganancias" de la lista disponible
-- "emisor_razon_social" = quien emite el certificado y hace la retención (el cliente que pagó)
-- "emisor_cuit" = CUIT del agente de retención (quien emite)
+- "emisor_razon_social" = formato "ARCA - [razón social del agente de retención]" (ej: "ARCA - Conuar S.A.")
+- "emisor_cuit" = CUIT del agente de retención (quien emite el certificado)
 - "receptor_razon_social" = el sujeto retenido (quien recibe el pago y sufre la retención)
 - "receptor_cuit" = CUIT del sujeto retenido
 - "numero_comprobante" = número del certificado de retención
 - "fecha_emision" = fecha del certificado
 - "total" = monto retenido (el importe efectivamente retenido, NO el monto del comprobante original)
-- "neto_gravado" = monto sujeto a retención/percepción
+- "neto_gravado" = monto sujeto a retención/percepción (NO el monto total del comprobante)
 - "observaciones" = impuesto, régimen, alícuota, comprobante que origina la retención
 
 CERTIFICADO DE RETENCIÓN IIBB (Ingresos Brutos):
 - "tipo" = el tipo que corresponda a "Retención IIBB" de la lista disponible
-- "emisor_razon_social" = quien emite el certificado y hace la retención (el cliente que pagó)
+- "emisor_razon_social" = formato "ARBA - [razón social del agente de retención]" o "CM - [razón social]" si es Convenio Multilateral
 - "emisor_cuit" = CUIT del agente de retención
 - "receptor_razon_social" = el sujeto retenido
 - "receptor_cuit" = CUIT del sujeto retenido
