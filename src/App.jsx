@@ -244,6 +244,11 @@ REGLAS GENERALES:
 - Elegí el tipo más específico disponible de la lista
 - Si un campo no existe, usá null
 - Los montos siempre como números sin símbolos
+- IDENTIFICACIÓN DEL TIPO DE FACTURA — prioridad absoluta:
+  · Buscá el texto "FACTURA A", "FACTURA B" o "FACTURA C" en el encabezado
+  · O el código dentro del recuadro de la letra: código 001 = Factura A, código 006 = Factura B, código 011 = Factura C
+  · NO te bases en el diseño gráfico ni en el contexto — solo en el texto y código
+  · Si dice "FACTURA A" con código 001 → tipo = "factura_a" aunque el documento sea de obra social, medicina prepaga u otro servicio
 
 Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
