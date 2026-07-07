@@ -188,6 +188,10 @@ RECIBOS DE SUELDO:
 - "total" es el neto a cobrar
 
 DDJJ FORMULARIO 931 (SUSS/ARCA):
+- "emisor_razon_social" = "ARCA - S.U.S.S." (el organismo recaudador, NUNCA el contribuyente)
+- "emisor_cuit" = "33-69345023-9" (CUIT de ARCA)
+- "receptor_razon_social" = nombre del contribuyente (el que figura como "Apellido y Nombre o Razón Social")
+- "receptor_cuit" = CUIT del contribuyente (el que figura en el formulario)
 - "total" = suma de la sección VIII únicamente
 - "contribuciones_ss" = Contribuciones de Seguridad Social (ítem 351)
 - "aportes_ss" = Aportes de Seguridad Social (ítem 301)
@@ -196,12 +200,15 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 - Los ítems son SOLO los conceptos de la sección VIII
 - La "Detracción art. 23 Ley 27.541" NO es un ítem, es un ajuste interno ya descontado
 - "neto_gravado" = Suma de remuneraciones
-- "receptor_razon_social" = "AFIP - S.U.S.S."
+- "periodo" = Mes-Año del formulario (ej: "04/2026")
 
 IMPUESTOS (municipales, provinciales, nacionales):
 - Extraé tipo de impuesto, período, vencimiento y monto a pagar
 
 DDJJ IIBB (Ingresos Brutos / Convenio Multilateral):
+- "emisor_razon_social" = "ARBA" o "Comisión Arbitral" según corresponda (el organismo, NUNCA el contribuyente)
+- "receptor_razon_social" = nombre del contribuyente
+- "receptor_cuit" = CUIT del contribuyente
 - "jurisdiccion" = provincia o "Convenio Multilateral"
 - "anticipo_imp_determinado" = impuesto determinado del período
 - "valores_restan" = anticipos/pagos que restan
@@ -212,6 +219,10 @@ DDJJ IIBB (Ingresos Brutos / Convenio Multilateral):
 - "total" = monto final a pagar (igual a "a_pagar")
 
 DDJJ IVA (ARCA):
+- "emisor_razon_social" = "ARCA - Agencia de Recaudación y Control Aduanero" (NUNCA el contribuyente)
+- "emisor_cuit" = "33-69345023-9"
+- "receptor_razon_social" = nombre del contribuyente
+- "receptor_cuit" = CUIT del contribuyente
 - "debito_fiscal" = total débito fiscal del período
 - "credito_fiscal" = total crédito fiscal del período
 - "saldo_tecnico_anterior" = saldo técnico a favor del período anterior
