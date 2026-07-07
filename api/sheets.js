@@ -242,6 +242,80 @@ export default async function handler(req, res) {
       return res.status(200).json({ encontrado: false });
     }
 
+    // ── Cartera Cheques ───────────────────────────────────────────────────────
+
+    if (action === 'get_cartera') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Cartera_Cheques`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'append_cheque') {
+      const c = data;
+      const row = [
+        c.id||'', c.nro_cheque||'', c.banco||'', c.cuit||'',
+        c.titular||'', c.monto||'', c.fecha_pago||'',
+        c.estado||'Disponible', c.cliente||'', c.origen||'', c.notas||''
+      ];
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Cartera_Cheques!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'update_cheque') {
+      const c = data;
+      const row = [
+        c.id||'', c.nro_cheque||'', c.banco||'', c.cuit||'',
+        c.titular||'', c.monto||'', c.fecha_pago||'',
+        c.estado||'Disponible', c.cliente||'', c.origen||'', c.notas||''
+      ];
+      const sheetRow = rowIndex + 2;
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Cartera_Cheques!A${sheetRow}:K${sheetRow}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'delete_cheque') {
+      const metaR = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const meta = await metaR.json();
+      const sheet = meta.sheets?.find(s => s.properties.title === 'Cartera_Cheques');
+      if (!sheet) return res.status(404).json({ error: 'Pestaña Cartera_Cheques no encontrada' });
+      const sheetTabId = sheet.properties.sheetId;
+      const startRowIndex = rowIndex + 1;
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requests: [{
+              deleteDimension: {
+                range: { sheetId: sheetTabId, dimension: 'ROWS', startIndex: startRowIndex, endIndex: startRowIndex + 1 }
+              }
+            }]
+          }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
