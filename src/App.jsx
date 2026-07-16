@@ -413,6 +413,7 @@ async function cargarDeSheets() {
         moneda: row[16] || "ARS", periodo: row[17] || null,
         empleado_nombre: row[18] || null, empleado_cuil: row[19] || null,
         observaciones: row[21] || null, items: [], confianza: "alta",
+        contacto_clasificado: null, // null = documento previo al clasificador
       },
     }));
   } catch (e) { return []; }
@@ -861,7 +862,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Info del clasificador */}
+                  {/* Info del clasificador — solo si fue procesado con el clasificador */}
                   {sel.datos.contacto_clasificado === true && (
                     <div style={{ background: C.successBg, border: `1px solid ${C.success}33`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16 }}>
                       <div>
