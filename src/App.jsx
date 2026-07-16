@@ -508,6 +508,8 @@ export default function App() {
   const [comp, setComp]             = useState([]);
   const [drag, setDrag]             = useState(false);
   const [selId, setSelId]           = useState(null);
+  const [seleccionados, setSeleccionados] = useState(new Set());
+  const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
   const [fTipo, setFTipo]           = useState("todos");
   const [fEst, setFEst]             = useState("todos");
   const [q, setQ]                   = useState("");
@@ -667,6 +669,42 @@ export default function App() {
     setEditing(false);
   };
 
+  // Selección múltiple
+  const toggleSeleccion = (id) => {
+    setSeleccionados(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleTodos = () => {
+    if (seleccionados.size === filtrados.length) {
+      setSeleccionados(new Set());
+    } else {
+      setSeleccionados(new Set(filtrados.map(c => c.id)));
+    }
+  };
+
+  const eliminarMasivo = async () => {
+    if (seleccionados.size === 0) return;
+    const confirmar = window.confirm(`¿Eliminás los ${seleccionados.size} documentos seleccionados? Esta acción no se puede deshacer.`);
+    if (!confirmar) return;
+    setEliminandoMasivo(true);
+    // Ordenar por rowIndex descendente para no desplazar los índices al eliminar
+    const aEliminar = comp
+      .filter(c => seleccionados.has(c.id) && c.sheetRowIndex !== null)
+      .sort((a, b) => b.sheetRowIndex - a.sheetRowIndex);
+    for (const c of aEliminar) {
+      await eliminarDeSheets(c.sheetRowIndex);
+    }
+    setSeleccionados(new Set());
+    setSelId(null);
+    const refreshed = await cargarDeSheets();
+    setComp(refreshed);
+    setEliminandoMasivo(false);
+  };
+
   const ss   = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
@@ -797,11 +835,35 @@ export default function App() {
               </div>
             </div>
 
+            {/* Barra de acciones masivas */}
+            {seleccionados.size > 0 && (
+              <div style={{ background: C.navy, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
+                  {seleccionados.size} documento{seleccionados.size > 1 ? "s" : ""} seleccionado{seleccionados.size > 1 ? "s" : ""}
+                </span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setSeleccionados(new Set())}
+                  style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 7, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                  Cancelar selección
+                </button>
+                <button onClick={eliminarMasivo} disabled={eliminandoMasivo}
+                  style={{ background: C.danger, color: "#fff", border: "none", borderRadius: 7, padding: "7px 18px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
+                  {eliminandoMasivo ? "Eliminando..." : `🗑 Eliminar ${seleccionados.size} documento${seleccionados.size > 1 ? "s" : ""}`}
+                </button>
+              </div>
+            )}
+
             {/* Table */}
             <div style={{ background: C.white, borderRadius: 12, boxShadow: C.shadow, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${C.border}` }}>
+                    <th style={{ padding: "11px 14px", width: 36 }}>
+                      <input type="checkbox"
+                        checked={filtrados.length > 0 && seleccionados.size === filtrados.length}
+                        onChange={toggleTodos}
+                        style={{ cursor: "pointer", width: 16, height: 16 }} />
+                    </th>
                     {["Proveedor", "Tipo", "Comprobante", "Fecha", "Neto", "IVA", "Total", "Estado"].map((h) => (
                       <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
@@ -809,27 +871,30 @@ export default function App() {
                 </thead>
                 <tbody>
                   {cargando ? (
-                    <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando historial…</td></tr>
+                    <tr><td colSpan={9} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando historial…</td></tr>
                   ) : filtrados.length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{comp.length === 0 ? "Cargá comprobantes para comenzar" : "Sin resultados"}</td></tr>
+                    <tr><td colSpan={9} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{comp.length === 0 ? "Cargá comprobantes para comenzar" : "Sin resultados"}</td></tr>
                   ) : filtrados.map((c) => (
                     <tr key={c.id}
-                      onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}
-                      style={{ borderBottom: `1px solid ${C.border}`, background: c.id === selId ? C.accentBg : "transparent", cursor: "pointer", transition: "background .1s" }}
-                      onMouseEnter={(e) => { if (c.id !== selId) e.currentTarget.style.background = "#f5f7ff"; }}
-                      onMouseLeave={(e) => { if (c.id !== selId) e.currentTarget.style.background = "transparent"; }}>
-                      <td style={tdS}>
+                      style={{ borderBottom: `1px solid ${C.border}`, background: seleccionados.has(c.id) ? "#fff8e6" : c.id === selId ? C.accentBg : "transparent", cursor: "pointer", transition: "background .1s" }}
+                      onMouseEnter={(e) => { if (!seleccionados.has(c.id) && c.id !== selId) e.currentTarget.style.background = "#f5f7ff"; }}
+                      onMouseLeave={(e) => { if (!seleccionados.has(c.id) && c.id !== selId) e.currentTarget.style.background = "transparent"; }}>
+                      <td style={{ padding: "11px 14px", width: 36 }} onClick={e => { e.stopPropagation(); toggleSeleccion(c.id); }}>
+                        <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)}
+                          style={{ cursor: "pointer", width: 16, height: 16 }} />
+                      </td>
+                      <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>
                         {c.estado === "procesando"
                           ? <span style={{ color: C.textMuted }}>⏳ {c.nombre}</span>
                           : <><div style={{ fontWeight: 600 }}>{c.datos?.emisor_razon_social || c.nombre}</div>
                              {c.datos?.emisor_cuit && <div style={{ fontSize: 11, color: C.textMuted }}>CUIT {c.datos.emisor_cuit}</div>}</>}
                       </td>
-                      <td style={tdS}>{c.datos ? <TipoBadge tipo={c.datos.tipo} tipos={tipos} /> : "—"}</td>
-                      <td style={{ ...tdS, fontFamily: "monospace", color: C.textSec, fontSize: 12 }}>{c.datos?.numero_comprobante || "—"}</td>
-                      <td style={{ ...tdS, color: C.textSec }}>{fmtFecha(c.datos?.fecha_emision)}</td>
-                      <td style={tdS}>{fmtPeso(c.datos?.neto_gravado)}</td>
-                      <td style={{ ...tdS, color: C.textSec }}>{fmtPeso(c.datos?.iva_importe)}</td>
-                      <td style={{ ...tdS, fontWeight: 700 }}>{fmtPeso(c.datos?.total)}</td>
+                      <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{c.datos ? <TipoBadge tipo={c.datos.tipo} tipos={tipos} /> : "—"}</td>
+                      <td style={{ ...tdS, fontFamily: "monospace", color: C.textSec, fontSize: 12 }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{c.datos?.numero_comprobante || "—"}</td>
+                      <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtFecha(c.datos?.fecha_emision)}</td>
+                      <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.neto_gravado)}</td>
+                      <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.iva_importe)}</td>
+                      <td style={{ ...tdS, fontWeight: 700 }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.total)}</td>
                       <td style={tdS}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           <Badge estado={c.estado} />
