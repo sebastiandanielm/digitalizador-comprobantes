@@ -367,6 +367,29 @@ async function guardarEnSheets(comp) {
   } catch (e) { console.error("Error guardando:", e); }
 }
 
+async function guardarItemsEnSheets(datos, contactoCategoria) {
+  try {
+    if (!datos.items || datos.items.length === 0) return;
+    // Solo guardar ítems de facturas de proveedores
+    if (!["factura_a", "factura_b", "factura_c", "ticket"].includes(datos.tipo)) return;
+    await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "append_items",
+        data: {
+          id_comprobante: datos.numero_comprobante || "",
+          fecha: datos.fecha_emision || "",
+          proveedor: datos.emisor_razon_social || "",
+          cuit_proveedor: datos.emisor_cuit || "",
+          categoria_costo: contactoCategoria || "",
+          items: datos.items,
+        }
+      }),
+    });
+  } catch (e) { console.error("Error guardando ítems:", e); }
+}
+
 async function clasificarContacto(cuit, nombre) {
   try {
     const resp = await fetch("/api/sheets", {
@@ -591,6 +614,7 @@ export default function App() {
 
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
+        await guardarItemsEnSheets(datos, contactoEmisor?.categoria_costo || "");
       } catch (e) {
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado: "error", error: e.message } : c));
       }
