@@ -319,6 +319,34 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
+    // ── Compras Items ─────────────────────────────────────────────────────────
+
+    if (action === 'append_items') {
+      const items = data.items || [];
+      if (items.length === 0) return res.status(200).json({ ok: true });
+      const values = items.map(it => [
+        data.id_comprobante || '',
+        data.fecha || '',
+        data.proveedor || '',
+        data.cuit_proveedor || '',
+        it.descripcion || '',
+        it.cantidad ?? '',
+        it.unidad || '',
+        it.precio_unitario ?? '',
+        it.subtotal ?? '',
+        data.categoria_costo || '',
+      ]);
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Compras_Items!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
