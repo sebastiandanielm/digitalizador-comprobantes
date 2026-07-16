@@ -281,6 +281,9 @@ REGLAS GENERALES:
 - Elegí el tipo más específico disponible de la lista
 - Si un campo no existe, usá null
 - Los montos siempre como números sin símbolos
+- "periodo" = período de facturación o declaración (ej: "01/2026", "Enero 2026") — NUNCA pongas la moneda en este campo
+- "moneda" = ARS, USD, EUR u otro — va SOLO en el campo moneda
+- "total" es OBLIGATORIO — buscá "Importe Total", "Total a Pagar", "Importe a Abonar" o similar. Si no lo encontrás, calculalo sumando: neto_gravado + iva_105 + iva_21 + iva_27 + percepciones + otros_tributos. NUNCA dejes total en null si hay montos en el documento
 - IDENTIFICACIÓN DEL TIPO DE FACTURA — prioridad absoluta:
   · Buscá el texto "FACTURA A", "FACTURA B" o "FACTURA C" en el encabezado
   · O el código dentro del recuadro de la letra: código 001 = Factura A, código 006 = Factura B, código 011 = Factura C
