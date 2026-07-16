@@ -634,7 +634,7 @@ export default function App() {
 
   const withData   = comp.filter((c) => c.datos);
   const totalFact  = withData.reduce((s, c) => s + (c.datos.total       || 0), 0);
-  const creditoIVA = withData.reduce((s, c) => s + (c.datos.iva_importe || 0), 0);
+  const creditoIVA = withData.reduce((s, c) => s + (((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || null || 0), 0);
   const pendientes = comp.filter((c) => c.estado === "revisar").length;
   const enCurso    = comp.filter((c) => c.estado === "procesando").length;
   const sel        = selId ? comp.find((c) => c.id === selId) : null;
@@ -652,8 +652,8 @@ export default function App() {
       Receptor: c.datos.receptor_razon_social || "",
       "CUIT Receptor": c.datos.receptor_cuit || "",
       "Neto Gravado": c.datos.neto_gravado ?? "",
-      "IVA %": c.datos.iva_alicuota ?? "",
-      "IVA $": c.datos.iva_importe ?? "",
+      "IVA 10.5%": c.datos.iva_105 ?? "", "IVA 21%": c.datos.iva_21 ?? "", "IVA 27%": c.datos.iva_27 ?? "",
+      "IVA $": ((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || null ?? "",
       Percepciones: c.datos.percepciones ?? "",
       "Otros Tributos": c.datos.otros_tributos ?? "",
       Total: c.datos.total ?? "",
@@ -901,7 +901,7 @@ export default function App() {
                       <td style={{ ...tdS, fontFamily: "monospace", color: C.textSec, fontSize: 12 }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{c.datos?.numero_comprobante || "—"}</td>
                       <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtFecha(c.datos?.fecha_emision)}</td>
                       <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.neto_gravado)}</td>
-                      <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.iva_importe)}</td>
+                      <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(((c.datos?.iva_105||0) + (c.datos?.iva_21||0) + (c.datos?.iva_27||0)) || null)}</td>
                       <td style={{ ...tdS, fontWeight: 700 }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.total)}</td>
                       <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -1040,7 +1040,7 @@ export default function App() {
                   <div style={{ background: C.bg, borderRadius: 8, padding: "12px 14px" }}>
                     {[
                       ["Neto gravado", sel.datos.neto_gravado],
-                      [`IVA${sel.datos.iva_alicuota ? " " + sel.datos.iva_alicuota + "%" : ""}`, sel.datos.iva_importe],
+                      [`IVA 10.5%`, sel.datos.iva_105], ["IVA 21%", sel.datos.iva_21], ["IVA 27%", sel.datos.iva_27],
                       ["Percepciones", sel.datos.percepciones],
                       ["Otros tributos", sel.datos.otros_tributos],
                     ].filter(([, v]) => v != null && v !== 0).map(([k, v]) => (
@@ -1103,7 +1103,7 @@ export default function App() {
                       ["receptor_razon_social","Receptor / Nombre"],["receptor_cuit","CUIT Receptor"],
                       ["fecha_emision","Fecha emisión (YYYY-MM-DD)"],["fecha_vencimiento","Fecha vencimiento"],
                       ["numero_comprobante","N° Comprobante"],["neto_gravado","Neto gravado"],
-                      ["iva_importe","IVA importe"],["percepciones","Percepciones"],
+                      ["iva_21","IVA 21%"],["percepciones","Percepciones"],
                       ["otros_tributos","Otros tributos"],["total","Total"],
                     ].map(([k, label]) => (
                       <div key={k}>
