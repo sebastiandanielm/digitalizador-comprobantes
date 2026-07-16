@@ -362,6 +362,18 @@ async function guardarEnSheets(comp) {
   } catch (e) { console.error("Error guardando:", e); }
 }
 
+async function clasificarContacto(cuit, nombre) {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "buscar_contacto", data: { cuit, nombre } }),
+    });
+    const data = await resp.json();
+    return data.encontrado ? data.contacto : null;
+  } catch (e) { return null; }
+}
+
 async function eliminarDeSheets(rowIndex) {
   try {
     const resp = await fetch("/api/sheets", {
@@ -492,7 +504,40 @@ export default function App() {
     for (const item of items) {
       try {
         const datos = await procesarConClaude(item.file, tipos);
-        const estado = datos.confianza === "baja" ? "revisar" : "procesado";
+
+        // ── Clasificador de contactos ──────────────────────────────────────
+        // Busca el emisor en Contactos para enriquecer los datos
+        const contactoEmisor = await clasificarContacto(
+          datos.emisor_cuit,
+          datos.emisor_razon_social
+        );
+
+        if (contactoEmisor) {
+          // Si lo encuentra, enriquece con datos del maestro
+          datos.contacto_tipo        = contactoEmisor.tipo;
+          datos.contacto_subtipo     = contactoEmisor.subtipo;
+          datos.contacto_categoria   = contactoEmisor.categoria_costo;
+          datos.contacto_clasificado = true;
+          // Si el nombre en Contactos es más completo, lo usa
+          if (contactoEmisor.razon_social && !datos.emisor_razon_social) {
+            datos.emisor_razon_social = contactoEmisor.razon_social;
+          }
+        } else {
+          // No encontrado → marcar para revisión
+          datos.contacto_clasificado = false;
+          if (datos.confianza !== "baja") {
+            datos.observaciones = (datos.observaciones || "") +
+              (datos.observaciones ? " | " : "") +
+              "⚠ CUIT no encontrado en Contactos — verificar";
+          }
+        }
+        // ──────────────────────────────────────────────────────────────────
+
+        // Si el contacto no está clasificado, forzar estado "revisar"
+        const estado = (datos.confianza === "baja" || !datos.contacto_clasificado)
+          ? "revisar"
+          : "procesado";
+
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
         const refreshed = await cargarDeSheets();
@@ -783,10 +828,55 @@ export default function App() {
                 <div style={{ background: C.white, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>Datos extraídos</span>
-                    <span style={{ background: sel.datos.confianza === "alta" ? C.successBg : sel.datos.confianza === "media" ? C.warningBg : C.dangerBg, color: sel.datos.confianza === "alta" ? C.success : sel.datos.confianza === "media" ? C.warning : C.danger, border: "1px solid currentColor", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
-                      Confianza {sel.datos.confianza}
-                    </span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {sel.datos.contacto_clasificado === true && (
+                        <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
+                          ✓ Clasificado
+                        </span>
+                      )}
+                      {sel.datos.contacto_clasificado === false && (
+                        <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
+                          ⚠ Sin clasificar
+                        </span>
+                      )}
+                      <span style={{ background: sel.datos.confianza === "alta" ? C.successBg : sel.datos.confianza === "media" ? C.warningBg : C.dangerBg, color: sel.datos.confianza === "alta" ? C.success : sel.datos.confianza === "media" ? C.warning : C.danger, border: "1px solid currentColor", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
+                        Confianza {sel.datos.confianza}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Info del clasificador */}
+                  {sel.datos.contacto_clasificado === true && (
+                    <div style={{ background: C.successBg, border: `1px solid ${C.success}33`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Tipo</div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_tipo || "—"}</div>
+                      </div>
+                      {sel.datos.contacto_subtipo && (
+                        <div>
+                          <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Subtipo</div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_subtipo}</div>
+                        </div>
+                      )}
+                      {sel.datos.contacto_categoria && (
+                        <div>
+                          <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Categoría Costo</div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_categoria}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {sel.datos.contacto_clasificado === false && (
+                    <div style={{ background: C.warningBg, border: `1px solid ${C.warning}33`, borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 13, color: C.warning, fontWeight: 600 }}>
+                        ⚠ CUIT {sel.datos.emisor_cuit || "desconocido"} no está en Contactos
+                      </div>
+                      <div style={{ fontSize: 12, color: C.textSec, marginTop: 4 }}>
+                        Agregalo en 👥 Contactos para clasificarlo automáticamente en el futuro
+                      </div>
+                    </div>
+                  )}
                   <Grid2 a={{ l: "Tipo", v: tipos.find((t) => t.key === sel.datos.tipo)?.label || sel.datos.tipo }} b={{ l: "N° Comprobante", v: sel.datos.numero_comprobante }} />
                   <Grid2 a={{ l: "Fecha emisión", v: fmtFecha(sel.datos.fecha_emision) }} b={{ l: "Vencimiento", v: fmtFecha(sel.datos.fecha_vencimiento) }} />
                   {sel.datos.periodo && <F l="Período" v={sel.datos.periodo} />}
