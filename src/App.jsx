@@ -182,6 +182,8 @@ FACTURAS A/B/C DE PROVEEDORES:
 - "condicion_venta" = condición de pago (contado, cuenta corriente, etc.)
 - "cae" = número de CAE y fecha de vencimiento
 - Extraé percepciones de IIBB y otros tributos por separado
+- "total" = campo "Importe Total" o "Total a Pagar" — SIEMPRE extraé este campo, es OBLIGATORIO
+- Si no encontrás el total explícito, calculalo: neto_gravado + iva_21 + iva_105 + iva_27 + percepciones + otros_tributos
 
 RECIBOS DE SUELDO:
 - "emisor_razon_social" es la empresa empleadora
@@ -797,10 +799,10 @@ export default function App() {
 
             {/* Drop zone */}
             <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop} onClick={() => fileRef.current.click()}
-              style={{ background: drag ? C.accentBg : C.white, border: `2px dashed ${drag ? C.accent : "#b8c4d8"}`, borderRadius: 14, padding: "28px 20px", textAlign: "center", cursor: "pointer", transition: "all .2s", boxShadow: C.shadow }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>⬆️</div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Arrastrá tus PDFs o imágenes acá</div>
-              <div style={{ color: C.textSec, fontSize: 13 }}>Facturas A/B/C · Tickets · Servicios · Recibos de sueldo · DDJJ</div>
+              style={{ background: drag ? C.accentBg : C.white, border: `2px dashed ${drag ? C.accent : "#b8c4d8"}`, borderRadius: 14, padding: "16px 20px", textAlign: "center", cursor: "pointer", transition: "all .2s", boxShadow: C.shadow }}>
+              <div style={{ fontSize: 26, marginBottom: 6 }}>⬆️</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Arrastrá tus PDFs o imágenes acá</div>
+              <div style={{ color: C.textSec, fontSize: 12 }}>Facturas A/B/C · Tickets · Servicios · Recibos de sueldo · DDJJ</div>
               <button onClick={(e) => { e.stopPropagation(); fileRef.current.click(); }}
                 style={{ marginTop: 14, background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 22px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                 + Cargar archivos
