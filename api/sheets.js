@@ -73,6 +73,9 @@ export default async function handler(req, res) {
         d.saldo_tecnico??'',            // AR: Saldo técnico
         d.retenciones_pagos_cuenta??'', // AS: Retenciones/percepciones/pagos a cuenta
         d.saldo_libre_disponibilidad??'',// AT: Saldo libre disponibilidad
+        d.contacto_clasificado != null ? String(d.contacto_clasificado) : '', // AU: Contacto_Clasificado
+        d.contacto_tipo||'',             // AV: Contacto_Tipo
+        d.contacto_categoria||'',        // AW: Contacto_Categoria
       ];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
