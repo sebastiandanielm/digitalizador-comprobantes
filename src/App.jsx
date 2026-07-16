@@ -653,7 +653,7 @@ export default function App() {
       "CUIT Receptor": c.datos.receptor_cuit || "",
       "Neto Gravado": c.datos.neto_gravado ?? "",
       "IVA 10.5%": c.datos.iva_105 ?? "", "IVA 21%": c.datos.iva_21 ?? "", "IVA 27%": c.datos.iva_27 ?? "",
-      "IVA $": ((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || null ?? "",
+      "IVA $": ((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || "",
       Percepciones: c.datos.percepciones ?? "",
       "Otros Tributos": c.datos.otros_tributos ?? "",
       Total: c.datos.total ?? "",
