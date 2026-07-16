@@ -455,7 +455,9 @@ async function cargarDeSheets() {
         moneda: row[16] || "ARS", periodo: row[17] || null,
         empleado_nombre: row[18] || null, empleado_cuil: row[19] || null,
         observaciones: row[21] || null, items: [], confianza: "alta",
-        contacto_clasificado: null, // null = documento previo al clasificador
+        contacto_clasificado: row[46] === "true" ? true : row[46] === "false" ? false : null,
+        contacto_tipo: row[47] || null,
+        contacto_categoria: row[48] || null,
       },
     }));
   } catch (e) { return []; }
