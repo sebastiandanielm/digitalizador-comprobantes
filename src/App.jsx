@@ -895,14 +895,14 @@ export default function App() {
                       <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.neto_gravado)}</td>
                       <td style={{ ...tdS, color: C.textSec }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.iva_importe)}</td>
                       <td style={{ ...tdS, fontWeight: 700 }} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>{fmtPeso(c.datos?.total)}</td>
-                      <td style={tdS}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                           <Badge estado={c.estado} />
                           {c.datos?.contacto_clasificado === true && (
-                            <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}33`, borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>✓ Clasificado</span>
+                            <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>✓ Clasif.</span>
                           )}
                           {c.datos?.contacto_clasificado === false && (
-                            <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}33`, borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>⚠ Sin clasificar</span>
+                            <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>⚠ S/Clasif.</span>
                           )}
                         </div>
                       </td>
