@@ -374,6 +374,48 @@ async function clasificarContacto(cuit, nombre) {
   } catch (e) { return null; }
 }
 
+// Cache de contactos para evitar múltiples llamadas a Sheets
+let _contactosCache = null;
+
+async function cargarContactosCache() {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "get_contactos" }),
+    });
+    const data = await resp.json();
+    const rows = data.values || [];
+    if (rows.length <= 1) return [];
+    return rows.slice(1).map(row => ({
+      id: row[0]||'', cuit: row[1]||'', razon_social: row[2]||'',
+      tipo: row[3]||'', subtipo: row[4]||'', categoria_costo: row[5]||'',
+      condicion_pago: row[6]||'', contacto: row[7]||'', telefono: row[8]||'',
+      mail: row[9]||'', direccion: row[10]||'', localidad: row[11]||'',
+      provincia: row[12]||'', cp: row[13]||'', condicion_iva: row[14]||'',
+      cbu: row[15]||'', banco: row[16]||'', alias: row[17]||'',
+      preferencia_cheque: row[18]||'', notas: row[19]||''
+    }));
+  } catch (e) { return []; }
+}
+
+function buscarEnCache(contactos, cuit, nombre) {
+  if (!contactos || contactos.length === 0) return null;
+  // Buscar por CUIT primero
+  if (cuit) {
+    const cuitLimpio = cuit.replace(/[-\s]/g, '');
+    const match = contactos.find(c => c.cuit.replace(/[-\s]/g, '') === cuitLimpio);
+    if (match) return match;
+  }
+  // Buscar por nombre si no encontró por CUIT
+  if (nombre) {
+    const nombreLower = nombre.toLowerCase();
+    const match = contactos.find(c => c.razon_social.toLowerCase().includes(nombreLower));
+    if (match) return match;
+  }
+  return null;
+}
+
 async function eliminarDeSheets(rowIndex) {
   try {
     const resp = await fetch("/api/sheets", {
@@ -502,39 +544,37 @@ export default function App() {
       file: f, fileUrl: URL.createObjectURL(f),
     }));
     setComp((p) => [...items, ...p]);
+
+    // Cargar contactos UNA SOLA VEZ antes de procesar todos los documentos
+    const contactosCache = await cargarContactosCache();
+
     for (const item of items) {
       try {
         const datos = await procesarConClaude(item.file, tipos);
 
-        // ── Clasificador de contactos ──────────────────────────────────────
-        // Busca el emisor en Contactos para enriquecer los datos
-        const contactoEmisor = await clasificarContacto(
+        // ── Clasificador — usa cache en memoria ────────────────────────────
+        const contactoEmisor = buscarEnCache(
+          contactosCache,
           datos.emisor_cuit,
           datos.emisor_razon_social
         );
 
         if (contactoEmisor) {
-          // Si lo encuentra, enriquece con datos del maestro
           datos.contacto_tipo        = contactoEmisor.tipo;
           datos.contacto_subtipo     = contactoEmisor.subtipo;
           datos.contacto_categoria   = contactoEmisor.categoria_costo;
           datos.contacto_clasificado = true;
-          // Si el nombre en Contactos es más completo, lo usa
           if (contactoEmisor.razon_social && !datos.emisor_razon_social) {
             datos.emisor_razon_social = contactoEmisor.razon_social;
           }
         } else {
-          // No encontrado → marcar para revisión
           datos.contacto_clasificado = false;
-          if (datos.confianza !== "baja") {
-            datos.observaciones = (datos.observaciones || "") +
-              (datos.observaciones ? " | " : "") +
-              "⚠ CUIT no encontrado en Contactos — verificar";
-          }
+          datos.observaciones = (datos.observaciones || "") +
+            (datos.observaciones ? " | " : "") +
+            "⚠ CUIT no encontrado en Contactos — verificar";
         }
         // ──────────────────────────────────────────────────────────────────
 
-        // Si el contacto no está clasificado, forzar estado "revisar"
         const estado = (datos.confianza === "baja" || !datos.contacto_clasificado)
           ? "revisar"
           : "procesado";
