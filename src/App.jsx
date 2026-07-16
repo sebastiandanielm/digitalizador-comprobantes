@@ -581,15 +581,13 @@ export default function App() {
 
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
-        const refreshed = await cargarDeSheets();
-        setComp((p) => {
-          const sinSheet = p.filter((c) => !c.id.startsWith("sheet-"));
-          return [...sinSheet.map((c) => c.id === item.id ? { ...c, estado, datos } : c), ...refreshed];
-        });
       } catch (e) {
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado: "error", error: e.message } : c));
       }
     }
+    // Recargar desde Sheets UNA SOLA VEZ al final de procesar todos
+    const refreshed = await cargarDeSheets();
+    setComp(refreshed);
   }, [tipos]);
 
   const onDrop = useCallback((e) => {
