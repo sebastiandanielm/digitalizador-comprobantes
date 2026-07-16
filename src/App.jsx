@@ -571,7 +571,11 @@ export default function App() {
 
   const filtrados = comp.filter((c) => {
     if (fTipo !== "todos" && c.datos?.tipo !== fTipo) return false;
-    if (fEst  !== "todos" && c.estado       !== fEst)  return false;
+    if (fEst === "clasificado") {
+      if (c.datos?.contacto_clasificado !== true) return false;
+    } else if (fEst === "sin_clasificar") {
+      if (c.datos?.contacto_clasificado !== false) return false;
+    } else if (fEst !== "todos" && c.estado !== fEst) return false;
     if (q.trim()) {
       const s = q.toLowerCase();
       return c.nombre.toLowerCase().includes(s) || c.datos?.emisor_razon_social?.toLowerCase().includes(s) || c.datos?.emisor_cuit?.includes(s) || c.datos?.numero_comprobante?.includes(s);
@@ -743,6 +747,8 @@ export default function App() {
                   <option value="revisar">Revisar</option>
                   <option value="procesando">En curso</option>
                   <option value="error">Error</option>
+                  <option value="clasificado">✓ Clasificado</option>
+                  <option value="sin_clasificar">⚠ Sin clasificar</option>
                 </select>
                 <div style={{ flex: 1 }} />
                 <button onClick={exportExcel} disabled={!withData.length}
@@ -785,7 +791,17 @@ export default function App() {
                       <td style={tdS}>{fmtPeso(c.datos?.neto_gravado)}</td>
                       <td style={{ ...tdS, color: C.textSec }}>{fmtPeso(c.datos?.iva_importe)}</td>
                       <td style={{ ...tdS, fontWeight: 700 }}>{fmtPeso(c.datos?.total)}</td>
-                      <td style={tdS}><Badge estado={c.estado} /></td>
+                      <td style={tdS}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <Badge estado={c.estado} />
+                          {c.datos?.contacto_clasificado === true && (
+                            <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}33`, borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>✓ Clasificado</span>
+                          )}
+                          {c.datos?.contacto_clasificado === false && (
+                            <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}33`, borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>⚠ Sin clasificar</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
