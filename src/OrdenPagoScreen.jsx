@@ -134,8 +134,8 @@ export default function OrdenPagoScreen({ onVolver }) {
   const [busqProv, setBusqProv]       = useState("");
   const [proveedor, setProveedor]     = useState(null);
   const [facturasSelec, setFacturasSelec] = useState(new Set());
-  const [diasMaximos, setDiasMaximos]   = useState(null);
-  const [preguntarDias, setPreguntarDias] = useState(false);
+  const [ordenCheques, setOrdenCheques] = useState("dias_asc");
+  const [verSolo, setVerSolo]           = useState("todos"); // "todos" | "seleccionados"
   const [solucionSolver, setSolucionSolver] = useState(null);
   const [chequesManual, setChequesManual]   = useState([]);
   const [transferencia, setTransferencia]   = useState(0);
@@ -519,9 +519,24 @@ export default function OrdenPagoScreen({ onVolver }) {
           </div>
           {solucionSolver && (
             <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
-              <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>🤖 Sugerencia del optimizador</div>
-                <div style={{ fontSize: 12, color: C.textMuted }}>{cheques.filter(c => c.estado === "Disponible").length} cheques disponibles en cartera</div>
+              <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>
+                  🤖 Cheques disponibles — {cheques.filter(c => c.estado === "Disponible").length} en cartera · <span style={{ color: C.success }}>{chequesManual.length} seleccionados</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <select value={verSolo} onChange={e => setVerSolo(e.target.value)}
+                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                    <option value="todos">Ver todos</option>
+                    <option value="seleccionados">Solo seleccionados ({chequesManual.length})</option>
+                  </select>
+                  <select value={ordenCheques} onChange={e => setOrdenCheques(e.target.value)}
+                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                    <option value="dias_asc">Días ↑ más cercanos</option>
+                    <option value="dias_desc">Días ↓ más lejanos</option>
+                    <option value="monto_desc">Monto ↓ mayor primero</option>
+                    <option value="monto_asc">Monto ↑ menor primero</option>
+                  </select>
+                </div>
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
@@ -533,30 +548,46 @@ export default function OrdenPagoScreen({ onVolver }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {cheques.filter(c => c.estado === "Disponible").map((c, i) => {
-                    const seleccionado = chequesManual.find(ch => ch.nro_cheque === c.nro_cheque);
-                    const dias = diasHastaFecha(c.fecha_pago);
-                    return (
-                      <tr key={i} onClick={() => toggleChequeManual(c)}
-                        style={{ borderBottom: `1px solid ${C.border}`, background: seleccionado ? C.successBg : "transparent", cursor: "pointer" }}
-                        onMouseEnter={e => { if (!seleccionado) e.currentTarget.style.background = "#f5f7ff"; }}
-                        onMouseLeave={e => { if (!seleccionado) e.currentTarget.style.background = seleccionado ? C.successBg : "transparent"; }}>
-                        <td style={{ padding: "10px 14px" }}>
-                          <input type="checkbox" checked={!!seleccionado} onChange={() => toggleChequeManual(c)} style={{ cursor: "pointer", width: 16, height: 16 }} />
-                        </td>
-                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700, fontSize: 13 }}>{c.nro_cheque}</td>
-                        <td style={{ padding: "10px 14px", fontSize: 13 }}>{c.titular}</td>
-                        <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{c.banco}</td>
-                        <td style={{ padding: "10px 14px", fontSize: 13, color: C.textSec }}>{fmtFecha(c.fecha_pago)}</td>
-                        <td style={{ padding: "10px 14px", fontSize: 12 }}>
-                          <span style={{ background: dias >= 0 ? C.successBg : C.dangerBg, color: dias >= 0 ? C.success : C.danger, borderRadius: 20, padding: "2px 8px", fontWeight: 700, fontSize: 11 }}>
-                            {dias >= 0 ? `+${dias}d` : `${dias}d`}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 14px", fontWeight: 700, fontSize: 13 }}>{fmtPeso(parseMonto(c.monto))}</td>
-                      </tr>
-                    );
-                  })}
+                  {(() => {
+                    let lista = cheques
+                      .filter(c => c.estado === "Disponible")
+                      .map(c => ({ ...c, _dias: diasHastaFecha(c.fecha_pago), _monto: parseMonto(c.monto) }));
+                    if (verSolo === "seleccionados") {
+                      lista = lista.filter(c => chequesManual.find(ch => ch.nro_cheque === c.nro_cheque));
+                    }
+                    lista.sort((a, b) => {
+                      if (ordenCheques === "dias_asc")   return a._dias - b._dias;
+                      if (ordenCheques === "dias_desc")  return b._dias - a._dias;
+                      if (ordenCheques === "monto_desc") return b._monto - a._monto;
+                      if (ordenCheques === "monto_asc")  return a._monto - b._monto;
+                      return 0;
+                    });
+                    return lista.map((c, i) => {
+                      const seleccionado = chequesManual.find(ch => ch.nro_cheque === c.nro_cheque);
+                      const dentroDelLimite = diasMaximos === null || c._dias <= diasMaximos;
+                      return (
+                        <tr key={i} onClick={() => toggleChequeManual(c)}
+                          style={{ borderBottom: `1px solid ${C.border}`, background: seleccionado ? C.successBg : !dentroDelLimite ? "#fff8f8" : "transparent", cursor: "pointer" }}
+                          onMouseEnter={e => { if (!seleccionado) e.currentTarget.style.background = "#f5f7ff"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = seleccionado ? C.successBg : !dentroDelLimite ? "#fff8f8" : "transparent"; }}>
+                          <td style={{ padding: "10px 14px" }}>
+                            <input type="checkbox" checked={!!seleccionado} onChange={() => toggleChequeManual(c)} style={{ cursor: "pointer", width: 16, height: 16 }} />
+                          </td>
+                          <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700, fontSize: 13 }}>{c.nro_cheque}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 13 }}>{c.titular}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{c.banco}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 13, color: C.textSec }}>{fmtFecha(c.fecha_pago)}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                            <span style={{ background: c._dias >= 0 ? (dentroDelLimite ? C.successBg : C.warningBg) : C.dangerBg, color: c._dias >= 0 ? (dentroDelLimite ? C.success : C.warning) : C.danger, borderRadius: 20, padding: "2px 8px", fontWeight: 700, fontSize: 11 }}>
+                              {c._dias >= 0 ? `+${c._dias}d` : `${c._dias}d`}
+                            </span>
+                            {!dentroDelLimite && <span style={{ fontSize: 10, color: C.warning, marginLeft: 4 }}>⚠ fuera de límite</span>}
+                          </td>
+                          <td style={{ padding: "10px 14px", fontWeight: 700, fontSize: 13 }}>{fmtPeso(c._monto)}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
