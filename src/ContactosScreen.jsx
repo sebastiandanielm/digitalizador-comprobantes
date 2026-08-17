@@ -372,10 +372,9 @@ export default function ContactosScreen({ onVolver }) {
               {/* Datos fiscales y pago */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12 }}>Datos fiscales y pago</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   {inp("condicion_iva", "Condición IVA", "Ej: IVA Responsable Inscripto")}
-                  {inp("condicion_pago", "Condición Pago", "Ej: 30 días")}
-                  {inp("preferencia_cheque", "Pref. Cheque", "", { select: true, options: PREFERENCIAS })}
+                  {inp("condicion_pago", "Condición Pago", "Ej: 30 días, Inmediato, Contado")}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12, marginTop: 12 }}>
                   {inp("cbu", "CBU")}
