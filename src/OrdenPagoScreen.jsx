@@ -222,12 +222,13 @@ export default function OrdenPagoScreen({ onVolver }) {
 
   const irAPago = () => {
     const dias = parseDiasCondicion(proveedor?.condicion_pago);
+    setDiasMaximos(dias);
+    setPaso(3);
     if (dias === null) {
-      // No tiene condición definida — preguntar
+      // Sin condición definida — mostrar modal para preguntar
       setPreguntarDias(true);
+      ejecutarSolver(null);
     } else {
-      setDiasMaximos(dias);
-      setPaso(3);
       ejecutarSolver(dias);
     }
   };
