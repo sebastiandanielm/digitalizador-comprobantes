@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import ContactosScreen from "./ContactosScreen.jsx";
 import CarteraChequesScreen from "./CarteraChequesScreen.jsx";
+import OrdenPagoScreen from "./OrdenPagoScreen.jsx";
 
 const C = {
   bg: "#f0f2f7", white: "#ffffff", border: "#e2e6f0",
@@ -549,7 +550,7 @@ export default function App() {
   const [cargando, setCargando]     = useState(true);
   const [eliminando, setEliminando] = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla]     = useState("lista"); // "lista" | "config" | "contactos" | "cheques"
+  const [pantalla, setPantalla]     = useState("lista"); // "lista" | "config" | "contactos" | "cheques" | "pagos"
   const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
@@ -754,6 +755,10 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
         {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
+        <button onClick={() => setPantalla(pantalla === "pagos" ? "lista" : "pagos")}
+          style={{ background: pantalla === "pagos" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+          💳 Pagos
+        </button>
         <button onClick={() => setPantalla(pantalla === "cheques" ? "lista" : "cheques")}
           style={{ background: pantalla === "cheques" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
           🏦 Cheques
@@ -770,6 +775,15 @@ export default function App() {
       </div>
     </div>
   );
+
+  if (pantalla === "pagos") {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
+        <Header />
+        <OrdenPagoScreen onVolver={() => setPantalla("lista")} />
+      </div>
+    );
+  }
 
   if (pantalla === "cheques") {
     return (
