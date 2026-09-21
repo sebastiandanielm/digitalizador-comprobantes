@@ -424,6 +424,25 @@ export default async function handler(req, res) {
       return res.status(200).json({ formas: valores });
     }
 
+    // ── Update Orden de Pago ──────────────────────────────────────────────────
+
+    if (action === 'update_orden') {
+      const { row } = data;
+      // _sheetRowIndex es el índice en el array (0-based desde fila 3 del sheet)
+      // Las 2 primeras filas son encabezados, entonces sheetRow = rowIndex + 1 (base 1) + 2 encabezados
+      const sheetRow = rowIndex + 3;
+      const colFin = String.fromCharCode(65 + row.length - 1);
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Ordenes_Pago!A${sheetRow}:${colFin}${sheetRow}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
