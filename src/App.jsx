@@ -371,7 +371,6 @@ async function guardarEnSheets(comp) {
 async function guardarItemsEnSheets(datos, contactoCategoria) {
   try {
     if (!datos.items || datos.items.length === 0) return;
-    // Solo guardar ítems de facturas de proveedores
     if (!["factura_a", "factura_b", "factura_c", "ticket"].includes(datos.tipo)) return;
     await fetch("/api/sheets", {
       method: "POST",
@@ -403,7 +402,6 @@ async function clasificarContacto(cuit, nombre) {
   } catch (e) { return null; }
 }
 
-// Cache de contactos para evitar múltiples llamadas a Sheets
 let _contactosCache = null;
 
 async function cargarContactosCache() {
@@ -430,13 +428,11 @@ async function cargarContactosCache() {
 
 function buscarEnCache(contactos, cuit, nombre) {
   if (!contactos || contactos.length === 0) return null;
-  // Buscar por CUIT primero
   if (cuit) {
     const cuitLimpio = cuit.replace(/[-\s]/g, '');
     const match = contactos.find(c => c.cuit.replace(/[-\s]/g, '') === cuitLimpio);
     if (match) return match;
   }
-  // Buscar por nombre si no encontró por CUIT
   if (nombre) {
     const nombreLower = nombre.toLowerCase();
     const match = contactos.find(c => c.razon_social.toLowerCase().includes(nombreLower));
@@ -502,7 +498,7 @@ async function cargarTiposDeSheets() {
     });
     const data = await resp.json();
     const rows = data.values || [];
-    if (rows.length <= 1) return null; // Sin configuración guardada
+    if (rows.length <= 1) return null;
     return rows.slice(1).map((row) => ({ key: row[0], label: row[1] })).filter((t) => t.key && t.label);
   } catch (e) { return null; }
 }
@@ -550,11 +546,10 @@ export default function App() {
   const [cargando, setCargando]     = useState(true);
   const [eliminando, setEliminando] = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla]     = useState("lista"); // "lista" | "config" | "contactos" | "cheques" | "pagos"
+  const [pantalla, setPantalla]     = useState("lista");
   const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
-  // Cargar tipos y comprobantes al iniciar
   useEffect(() => {
     Promise.all([cargarTiposDeSheets(), cargarDeSheets()]).then(([tiposGuardados, datos]) => {
       if (tiposGuardados && tiposGuardados.length > 0) setTipos(tiposGuardados);
@@ -579,19 +574,13 @@ export default function App() {
     }));
     setComp((p) => [...items, ...p]);
 
-    // Cargar contactos UNA SOLA VEZ antes de procesar todos los documentos
     const contactosCache = await cargarContactosCache();
 
     for (const item of items) {
       try {
         const datos = await procesarConClaude(item.file, tipos);
 
-        // ── Clasificador — usa cache en memoria ────────────────────────────
-        const contactoEmisor = buscarEnCache(
-          contactosCache,
-          datos.emisor_cuit,
-          datos.emisor_razon_social
-        );
+        const contactoEmisor = buscarEnCache(contactosCache, datos.emisor_cuit, datos.emisor_razon_social);
 
         if (contactoEmisor) {
           datos.contacto_tipo        = contactoEmisor.tipo;
@@ -607,11 +596,8 @@ export default function App() {
             (datos.observaciones ? " | " : "") +
             "⚠ CUIT no encontrado en Contactos — verificar";
         }
-        // ──────────────────────────────────────────────────────────────────
 
-        const estado = (datos.confianza === "baja" || !datos.contacto_clasificado)
-          ? "revisar"
-          : "procesado";
+        const estado = (datos.confianza === "baja" || !datos.contacto_clasificado) ? "revisar" : "procesado";
 
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
@@ -620,7 +606,6 @@ export default function App() {
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado: "error", error: e.message } : c));
       }
     }
-    // Recargar desde Sheets UNA SOLA VEZ al final de procesar todos
     const refreshed = await cargarDeSheets();
     setComp(refreshed);
   }, [tipos]);
@@ -658,7 +643,7 @@ export default function App() {
   });
 
   const withData   = comp.filter((c) => c.datos);
-  const totalFact  = withData.reduce((s, c) => s + (c.datos.total       || 0), 0);
+  const totalFact  = withData.reduce((s, c) => s + (c.datos.total || 0), 0);
   const creditoIVA = withData.reduce((s, c) => s + (((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || null || 0), 0);
   const pendientes = comp.filter((c) => c.estado === "revisar").length;
   const enCurso    = comp.filter((c) => c.estado === "procesando").length;
@@ -702,7 +687,6 @@ export default function App() {
     setEditing(false);
   };
 
-  // Selección múltiple
   const toggleSeleccion = (id) => {
     setSeleccionados(prev => {
       const next = new Set(prev);
@@ -724,7 +708,6 @@ export default function App() {
     const confirmar = window.confirm(`¿Eliminás los ${seleccionados.size} documentos seleccionados? Esta acción no se puede deshacer.`);
     if (!confirmar) return;
     setEliminandoMasivo(true);
-    // Ordenar por rowIndex descendente para no desplazar los índices al eliminar
     const aEliminar = comp
       .filter(c => seleccionados.has(c.id) && c.sheetRowIndex !== null)
       .sort((a, b) => b.sheetRowIndex - a.sheetRowIndex);
@@ -742,11 +725,11 @@ export default function App() {
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
-  // Header compartido
+  // ─── Header compartido ────────────────────────────────────────────────────
   const Header = () => (
     <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>D</div>
+        <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>M</div>
         <div>
           <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>MICOFY</div>
           <div style={{ color: "#7a9cc8", fontSize: 11 }}>Panel principal · IA integrada · Google Sheets</div>
@@ -767,10 +750,7 @@ export default function App() {
           style={{ background: pantalla === "contactos" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
           👥 Contactos
         </button>
-        <button onClick={() => setPantalla(pantalla === "config" ? "lista" : "config")}
-          style={{ background: pantalla === "config" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          ⚙ Configuración
-    <button onClick={() => window.open("https://docs.google.com/spreadsheets/d/1o7jI-MoDJ4m-b9EDy5ClZoEMRYhWCphcn5iORJu6gIw/edit", "_blank")}
+        <button onClick={() => window.open("https://docs.google.com/spreadsheets/d/1o7jI-MoDJ4m-b9EDy5ClZoEMRYhWCphcn5iORJu6gIw/edit", "_blank")}
           style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
           📊 Base de datos
         </button>
@@ -966,7 +946,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* RIGHT panel */}
+          {/* Panel derecho */}
           {sel && (
             <div style={{ position: "sticky", top: 76, borderRadius: 14, overflow: "hidden", boxShadow: C.shadowLg, maxHeight: "calc(100vh - 96px)", overflowY: "auto" }}>
               <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -1003,14 +983,10 @@ export default function App() {
                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>Datos extraídos</span>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       {sel.datos.contacto_clasificado === true && (
-                        <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
-                          ✓ Clasificado
-                        </span>
+                        <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>✓ Clasificado</span>
                       )}
                       {sel.datos.contacto_clasificado === false && (
-                        <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
-                          ⚠ Sin clasificar
-                        </span>
+                        <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>⚠ Sin clasificar</span>
                       )}
                       <span style={{ background: sel.datos.confianza === "alta" ? C.successBg : sel.datos.confianza === "media" ? C.warningBg : C.dangerBg, color: sel.datos.confianza === "alta" ? C.success : sel.datos.confianza === "media" ? C.warning : C.danger, border: "1px solid currentColor", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
                         Confianza {sel.datos.confianza}
@@ -1018,7 +994,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Info del clasificador — solo si fue procesado con el clasificador */}
                   {sel.datos.contacto_clasificado === true && (
                     <div style={{ background: C.successBg, border: `1px solid ${C.success}33`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16 }}>
                       <div>
@@ -1042,14 +1017,11 @@ export default function App() {
 
                   {sel.datos.contacto_clasificado === false && (
                     <div style={{ background: C.warningBg, border: `1px solid ${C.warning}33`, borderRadius: 8, padding: "10px 14px" }}>
-                      <div style={{ fontSize: 13, color: C.warning, fontWeight: 600 }}>
-                        ⚠ CUIT {sel.datos.emisor_cuit || "desconocido"} no está en Contactos
-                      </div>
-                      <div style={{ fontSize: 12, color: C.textSec, marginTop: 4 }}>
-                        Agregalo en 👥 Contactos para clasificarlo automáticamente en el futuro
-                      </div>
+                      <div style={{ fontSize: 13, color: C.warning, fontWeight: 600 }}>⚠ CUIT {sel.datos.emisor_cuit || "desconocido"} no está en Contactos</div>
+                      <div style={{ fontSize: 12, color: C.textSec, marginTop: 4 }}>Agregalo en 👥 Contactos para clasificarlo automáticamente en el futuro</div>
                     </div>
                   )}
+
                   <Grid2 a={{ l: "Tipo", v: tipos.find((t) => t.key === sel.datos.tipo)?.label || sel.datos.tipo }} b={{ l: "N° Comprobante", v: sel.datos.numero_comprobante }} />
                   <Grid2 a={{ l: "Fecha emisión", v: fmtFecha(sel.datos.fecha_emision) }} b={{ l: "Vencimiento", v: fmtFecha(sel.datos.fecha_vencimiento) }} />
                   {sel.datos.periodo && <F l="Período" v={sel.datos.periodo} />}
@@ -1085,7 +1057,7 @@ export default function App() {
                   <div style={{ background: C.bg, borderRadius: 8, padding: "12px 14px" }}>
                     {[
                       ["Neto gravado", sel.datos.neto_gravado],
-                      [`IVA 10.5%`, sel.datos.iva_105], ["IVA 21%", sel.datos.iva_21], ["IVA 27%", sel.datos.iva_27],
+                      ["IVA 10.5%", sel.datos.iva_105], ["IVA 21%", sel.datos.iva_21], ["IVA 27%", sel.datos.iva_27],
                       ["Percepciones", sel.datos.percepciones],
                       ["Otros tributos", sel.datos.otros_tributos],
                     ].filter(([, v]) => v != null && v !== 0).map(([k, v]) => (
@@ -1128,13 +1100,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* Formulario edición — ahora incluye Tipo */}
               {sel.datos && editing && (
                 <div style={{ background: C.white, padding: "16px 20px" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: C.navy }}>✎ Editar campos</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-
-                    {/* Campo Tipo */}
                     <div>
                       <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Tipo de comprobante</div>
                       <select value={editD.tipo || ""} onChange={(e) => setEditD((p) => ({ ...p, tipo: e.target.value }))}
@@ -1142,7 +1111,6 @@ export default function App() {
                         {tipos.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                       </select>
                     </div>
-
                     {[
                       ["emisor_razon_social","Emisor razón social"],["emisor_cuit","CUIT Emisor"],
                       ["receptor_razon_social","Receptor / Nombre"],["receptor_cuit","CUIT Receptor"],
