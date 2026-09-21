@@ -47,9 +47,6 @@ const diasHastaFecha = (fechaStr) => {
   return Math.round((fecha - hoy) / (1000 * 60 * 60 * 24));
 };
 
-// ── Solver de cheques ──────────────────────────────────────────────────────────
-// Algoritmo knapsack modificado para minimizar efectivo adicional
-// Prioriza cheques lejanos (más días) o cercanos según configuración
 function parseDiasCondicion(condicion) {
   if (!condicion) return null;
   const lower = condicion.toLowerCase();
@@ -67,12 +64,10 @@ function solverCheques(cheques, montoObjetivo, diasMaximos = null) {
       dias: diasHastaFecha(c.fecha_pago),
     }))
     .filter(c => c.montoNum > 0)
-    // Filtrar por días máximos si está definido
     .filter(c => diasMaximos === null || c.dias <= diasMaximos);
 
   if (disponibles.length === 0) return { seleccionados: [], transferencia: montoObjetivo };
 
-  // Ordenar por días ascendente (más cercanos primero dentro del límite)
   const ordenados = [...disponibles].sort((a, b) => a.dias - b.dias);
 
   let mejorCombinacion = [];
@@ -125,7 +120,7 @@ async function apiSheets(action, data, rowIndex) {
 }
 
 export default function OrdenPagoScreen({ onVolver }) {
-  const [paso, setPaso]               = useState(1); // 1=proveedor, 2=facturas, 3=pago
+  const [paso, setPaso]               = useState(1);
   const [contactos, setContactos]     = useState([]);
   const [comprobantes, setComprobantes] = useState([]);
   const [cheques, setCheques]         = useState([]);
@@ -135,12 +130,14 @@ export default function OrdenPagoScreen({ onVolver }) {
   const [proveedor, setProveedor]     = useState(null);
   const [facturasSelec, setFacturasSelec] = useState(new Set());
   const [ordenCheques, setOrdenCheques] = useState("dias_asc");
-  const [verSolo, setVerSolo]           = useState("todos"); // "todos" | "seleccionados"
+  const [verSolo, setVerSolo]           = useState("todos");
   const [solucionSolver, setSolucionSolver] = useState(null);
   const [chequesManual, setChequesManual]   = useState([]);
   const [transferencia, setTransferencia]   = useState(0);
   const [guardando, setGuardando]     = useState(false);
   const [ordenGenerada, setOrdenGenerada] = useState(null);
+  const [diasMaximos, setDiasMaximos] = useState(null);      // ← AGREGADO
+  const [preguntarDias, setPreguntarDias] = useState(false); // ← AGREGADO
 
   useEffect(() => {
     Promise.all([
@@ -148,7 +145,6 @@ export default function OrdenPagoScreen({ onVolver }) {
       apiSheets("get"),
       apiSheets("get_cartera"),
     ]).then(([ctData, compData, chqData]) => {
-      // Contactos — solo proveedores
       const ctRows = ctData.values || [];
       setContactos(ctRows.slice(1)
         .map((r, i) => ({
@@ -161,7 +157,6 @@ export default function OrdenPagoScreen({ onVolver }) {
         .filter(c => c.tipo === "Proveedor")
       );
 
-      // Comprobantes — facturas con total > 0
       const compRows = compData.values || [];
       setComprobantes(compRows.slice(1).map((r, i) => ({
         _idx: i,
@@ -173,7 +168,6 @@ export default function OrdenPagoScreen({ onVolver }) {
         estado: r[21]||"procesado",
       })).filter(c => c.total > 0 && !["recibo_sueldo","ddjj"].includes(c.tipo)));
 
-      // Cheques disponibles
       const chqRows = chqData.values || [];
       setCheques(chqRows.slice(1).map((r, i) => ({
         _idx: i, id: r[0]||"", nro_cheque: r[1]||"", banco: r[2]||"",
@@ -186,13 +180,11 @@ export default function OrdenPagoScreen({ onVolver }) {
     });
   }, []);
 
-  // Proveedores filtrados por búsqueda
   const proveedoresFiltrados = contactos.filter(c => {
     const s = busqProv.toLowerCase();
     return c.razon_social.toLowerCase().includes(s) || c.cuit.includes(s);
   });
 
-  // Facturas del proveedor seleccionado (pendientes de pago)
   const facturasProv = proveedor
     ? comprobantes.filter(c =>
         c.cuit_emisor.replace(/[-\s]/g,"") === proveedor.cuit.replace(/[-\s]/g,"") &&
@@ -213,8 +205,9 @@ export default function OrdenPagoScreen({ onVolver }) {
     });
   };
 
-  const ejecutarSolver = (dias = diasMaximos) => {
-    const resultado = solverCheques(cheques, totalSeleccionado, dias);
+  const ejecutarSolver = (dias) => {
+    const diasAUsar = dias !== undefined ? dias : diasMaximos;
+    const resultado = solverCheques(cheques, totalSeleccionado, diasAUsar);
     setSolucionSolver(resultado);
     setChequesManual(resultado.seleccionados.map(c => ({ ...c, _seleccionado: true })));
     setTransferencia(resultado.transferencia);
@@ -223,12 +216,12 @@ export default function OrdenPagoScreen({ onVolver }) {
   const irAPago = () => {
     const dias = parseDiasCondicion(proveedor?.condicion_pago);
     setDiasMaximos(dias);
-    setPaso(3);
     if (dias === null) {
-      // Sin condición definida — mostrar modal para preguntar
+      setPaso(3);
       setPreguntarDias(true);
       ejecutarSolver(null);
     } else {
+      setPaso(3);
       ejecutarSolver(dias);
     }
   };
@@ -258,11 +251,9 @@ export default function OrdenPagoScreen({ onVolver }) {
     }
     setGuardando(true);
     try {
-      // Generar número de orden
       const nroOrden = Date.now();
       const fecha = new Date().toLocaleDateString("es-AR");
 
-      // Marcar cheques como "Entregado a proveedor"
       for (const cheque of chequesManual) {
         await apiSheets("update_cheque", { ...cheque, estado: "Entregado a proveedor" }, cheque._idx);
       }
@@ -438,7 +429,6 @@ export default function OrdenPagoScreen({ onVolver }) {
       {paso === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Resumen */}
           <div style={{ background: C.navy, borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ color: "#7a9cc8", fontSize: 13 }}>{proveedor.razon_social} · {facturasSelec.size} factura{facturasSelec.size > 1 ? "s" : ""}</div>
@@ -449,7 +439,6 @@ export default function OrdenPagoScreen({ onVolver }) {
             </button>
           </div>
 
-          {/* Modal: preguntar días cuando el proveedor no tiene condición definida */}
           {preguntarDias && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ background: C.white, borderRadius: 16, padding: 28, maxWidth: 420, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
@@ -463,7 +452,6 @@ export default function OrdenPagoScreen({ onVolver }) {
                     <button key={d} onClick={() => {
                       setDiasMaximos(d);
                       setPreguntarDias(false);
-                      setPaso(3);
                       ejecutarSolver(d);
                     }}
                       style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
@@ -479,7 +467,6 @@ export default function OrdenPagoScreen({ onVolver }) {
                         const d = parseInt(e.target.value) || 0;
                         setDiasMaximos(d);
                         setPreguntarDias(false);
-                        setPaso(3);
                         ejecutarSolver(d);
                       }
                     }}
@@ -493,7 +480,6 @@ export default function OrdenPagoScreen({ onVolver }) {
             </div>
           )}
 
-          {/* Info condición de pago */}
           <div style={{ background: C.white, borderRadius: 12, boxShadow: C.shadow, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 13 }}>
               <span style={{ color: C.textMuted }}>Condición de pago: </span>
@@ -507,7 +493,6 @@ export default function OrdenPagoScreen({ onVolver }) {
             </button>
           </div>
 
-          {/* Configuración del solver */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: C.navy, marginBottom: 10 }}>⚙ Optimizador de cheques</div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -518,6 +503,7 @@ export default function OrdenPagoScreen({ onVolver }) {
               </button>
             </div>
           </div>
+
           {solucionSolver && (
             <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
               <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
@@ -594,7 +580,6 @@ export default function OrdenPagoScreen({ onVolver }) {
             </div>
           )}
 
-          {/* Transferencia adicional */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: C.navy, marginBottom: 14 }}>💸 Complemento por transferencia</div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -608,7 +593,6 @@ export default function OrdenPagoScreen({ onVolver }) {
             </div>
           </div>
 
-          {/* Resumen final */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: C.navy, marginBottom: 14 }}>📊 Resumen de pago</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -677,7 +661,7 @@ export default function OrdenPagoScreen({ onVolver }) {
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => { setPaso(1); setProveedor(null); setFacturasSelec(new Set()); setSolucionSolver(null); setChequesManual([]); setOrdenGenerada(null); }}
+            <button onClick={() => { setPaso(1); setProveedor(null); setFacturasSelec(new Set()); setSolucionSolver(null); setChequesManual([]); setOrdenGenerada(null); setDiasMaximos(null); setPreguntarDias(false); }}
               style={btnS(C.accent)}>
               + Nueva orden de pago
             </button>
