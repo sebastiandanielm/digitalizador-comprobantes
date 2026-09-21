@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import ContactosScreen from "./ContactosScreen.jsx";
 import CarteraChequesScreen from "./CarteraChequesScreen.jsx";
-import OrdenPagoScreen from "./OrdenPagoScreen.jsx";
+import PagosScreen from "./PagosScreen.jsx";
 
 const C = {
   bg: "#f0f2f7", white: "#ffffff", border: "#e2e6f0",
@@ -780,7 +780,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
-        <OrdenPagoScreen onVolver={() => setPantalla("lista")} />
+        <PagosScreen onVolver={() => setPantalla("lista")} />
       </div>
     );
   }
