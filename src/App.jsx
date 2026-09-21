@@ -748,7 +748,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>D</div>
         <div>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Digitalizador de comprobantes</div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>MICOFY</div>
           <div style={{ color: "#7a9cc8", fontSize: 11 }}>Panel principal · IA integrada · Google Sheets</div>
         </div>
       </div>
