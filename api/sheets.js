@@ -21,61 +21,55 @@ export default async function handler(req, res) {
     if (action === 'append') {
       const d = data;
       const row = [
-        // A-W: Base (todas las facturas)
-        d.nombre||'',                    // A: Archivo
-        d.tipo||'',                      // B: Tipo
-        d.numero_comprobante||'',        // C: Nº comprobante
-        d.punto_venta||'',              // D: Punto de venta
-        d.fecha_emision||'',            // E: Fecha emisión
-        d.fecha_vencimiento||'',        // F: Fecha Vto
-        d.emisor_razon_social||'',      // G: Emisor
-        d.emisor_cuit||'',              // H: CUIT emisor
-        d.receptor_razon_social||'',    // I: Receptor
-        d.receptor_cuit||'',            // J: CUIT receptor
-        d.neto_gravado??'',             // K: Neto gravado
-        d.iva_105??'',                  // L: IVA 10.5%
-        d.iva_21??'',                   // M: IVA 21%
-        d.iva_27??'',                   // N: IVA 27%
-        d.percepciones??'',             // O: Percepciones
-        d.otros_tributos??'',           // P: Otros tributos
-        d.total??'',                    // Q: Total
-        d.moneda||'ARS',                // R: Moneda
-        d.periodo||'',                  // S: Período
-        d.empleado_nombre||'',          // T: Empleado
-        d.empleado_cuil||'',            // U: CUIL
-        d.estado||'',                   // V: Estado
-        d.observaciones||'',            // W: Observaciones
-        // X-Y: Facturas
-        d.condicion_venta||'',          // X: Condición de venta
-        d.cae||'',                      // Y: CAE
-        // Z-AC: DDJJ Form. 931
-        d.contribuciones_ss??'',        // Z: Contribuciones SS
-        d.aportes_ss??'',               // AA: Aportes SS
-        d.lrt??'',                      // AB: LRT
-        d.seguro_vida??'',              // AC: Seguro vida obligatorio
-        // AD-AJ: DDJJ IIBB
-        d.jurisdiccion||'',             // AD: Jurisdicción
-        d.anticipo_imp_determinado??'', // AE: Anticipo Imp. Determinado
-        d.valores_restan??'',           // AF: Valores Restan
-        d.valores_suman??'',            // AG: Valores Suman
-        d.a_favor_contribuyente??'',    // AH: A favor Contribuyente
-        d.a_favor_fisco??'',            // AI: A favor Fisco
-        d.a_pagar??'',                  // AJ: A Pagar
-        // AK-AN: Extracto Bancario
-        d.comisiones_bancarias??'',     // AK: Comisiones Bancarias
-        d.impuestos_debito_credito??'', // AL: Impuestos Débito/Crédito
-        d.percepcion_sircreb??'',       // AM: Percepción SIRCREB
-        d.seguros_bancarios??'',        // AN: Seguros Bancarios
-        // AO-AT: DDJJ IVA
-        d.debito_fiscal??'',            // AO: Total débito fiscal
-        d.credito_fiscal??'',           // AP: Total crédito fiscal
-        d.saldo_tecnico_anterior??'',   // AQ: Saldo técnico anterior
-        d.saldo_tecnico??'',            // AR: Saldo técnico
-        d.retenciones_pagos_cuenta??'', // AS: Retenciones/percepciones/pagos a cuenta
-        d.saldo_libre_disponibilidad??'',// AT: Saldo libre disponibilidad
-        d.contacto_clasificado != null ? String(d.contacto_clasificado) : '', // AU: Contacto_Clasificado
-        d.contacto_tipo||'',             // AV: Contacto_Tipo
-        d.contacto_categoria||'',        // AW: Contacto_Categoria
+        d.nombre||'',
+        d.tipo||'',
+        d.numero_comprobante||'',
+        d.punto_venta||'',
+        d.fecha_emision||'',
+        d.fecha_vencimiento||'',
+        d.emisor_razon_social||'',
+        d.emisor_cuit||'',
+        d.receptor_razon_social||'',
+        d.receptor_cuit||'',
+        d.neto_gravado??'',
+        d.iva_105??'',
+        d.iva_21??'',
+        d.iva_27??'',
+        d.percepciones??'',
+        d.otros_tributos??'',
+        d.total??'',
+        d.moneda||'ARS',
+        d.periodo||'',
+        d.empleado_nombre||'',
+        d.empleado_cuil||'',
+        d.estado||'',
+        d.observaciones||'',
+        d.condicion_venta||'',
+        d.cae||'',
+        d.contribuciones_ss??'',
+        d.aportes_ss??'',
+        d.lrt??'',
+        d.seguro_vida??'',
+        d.jurisdiccion||'',
+        d.anticipo_imp_determinado??'',
+        d.valores_restan??'',
+        d.valores_suman??'',
+        d.a_favor_contribuyente??'',
+        d.a_favor_fisco??'',
+        d.a_pagar??'',
+        d.comisiones_bancarias??'',
+        d.impuestos_debito_credito??'',
+        d.percepcion_sircreb??'',
+        d.seguros_bancarios??'',
+        d.debito_fiscal??'',
+        d.credito_fiscal??'',
+        d.saldo_tecnico_anterior??'',
+        d.saldo_tecnico??'',
+        d.retenciones_pagos_cuenta??'',
+        d.saldo_libre_disponibilidad??'',
+        d.contacto_clasificado != null ? String(d.contacto_clasificado) : '',
+        d.contacto_tipo||'',
+        d.contacto_categoria||'',
       ];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
@@ -345,6 +339,89 @@ export default async function handler(req, res) {
         }
       );
       return res.status(200).json(await r.json());
+    }
+
+    // ── Órdenes de Pago ───────────────────────────────────────────────────────
+
+    if (action === 'get_ordenes') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Ordenes_Pago`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'append_orden') {
+      const o = data;
+
+      // Hasta 5 facturas (7 columnas cada una)
+      const docCols = [];
+      for (let i = 0; i < 5; i++) {
+        const f = (o.facturas || [])[i] || {};
+        docCols.push(
+          f.numero   || '',
+          f.fecha    || '',
+          f.cantidad || '',
+          f.detalle  || '',
+          f.precio   || '',
+          f.tc       || '1',
+          f.total    || ''
+        );
+      }
+
+      // Impuestos (6 columnas)
+      const impCols = [
+        o.subtotal       || '',
+        o.iva            || '',
+        o.percepcion_iva || '',
+        o.iibb_caba      || '',
+        o.iibb_bsas      || '',
+        o.total          || '',
+      ];
+
+      // Hasta 17 formas de pago (5 columnas cada una)
+      const pagoCols = [];
+      for (let i = 0; i < 17; i++) {
+        const p = (o.formas_pago || [])[i] || {};
+        pagoCols.push(
+          p.tipo       || '',
+          p.nro_cheque || '',
+          p.banco      || '',
+          p.fecha      || '',
+          p.monto      || ''
+        );
+      }
+
+      const row = [
+        o.nro_orden,
+        o.fecha,
+        o.proveedor,
+        o.cuit,
+        o.datos_bancarios || '',
+        ...docCols,
+        ...impCols,
+        ...pagoCols,
+      ];
+
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Ordenes_Pago!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'get_formas_pago') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!C1:C20`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data2 = await r.json();
+      const valores = (data2.values || []).flat().filter(v => v && v.trim());
+      return res.status(200).json({ formas: valores });
     }
 
     return res.status(400).json({ error: 'Acción no válida' });
