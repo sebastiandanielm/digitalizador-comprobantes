@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import ContactosScreen from "./ContactosScreen.jsx";
 import CarteraChequesScreen from "./CarteraChequesScreen.jsx";
 import PagosScreen from "./PagosScreen.jsx";
+import HomeScreen from "./HomeScreen.jsx";
 
 const C = {
   bg: "#f0f2f7", white: "#ffffff", border: "#e2e6f0",
@@ -61,11 +62,33 @@ const TipoBadge = ({ tipo, tipos }) => {
   );
 };
 
-// ─── Pantalla de Configuración ────────────────────────────────────────────────
-function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
-  const [lista, setLista]       = useState(tipos.map((t) => ({ ...t })));
+function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando }) {
+  const [lista, setLista]           = useState(tipos.map((t) => ({ ...t })));
   const [nuevoLabel, setNuevoLabel] = useState("");
-  const [guardado, setGuardado] = useState(false);
+  const [guardado, setGuardado]     = useState(false);
+  const [busConfig, setBusConfig]   = useState(buscadorConfig.map(c => ({ ...c, keywords: c.keywords.join(', ') })));
+
+  const MODULOS_BUSCADOR = [
+    { key: "digitalizador", label: "Digitalizador" },
+    { key: "pagos",         label: "Pagos" },
+    { key: "cheques",       label: "Cheques" },
+    { key: "contactos",     label: "Contactos" },
+    { key: "costos",        label: "Costos" },
+    { key: "cc_proveedores",label: "Cta. Cte. Proveedores" },
+    { key: "cc_clientes",   label: "Cta. Cte. Clientes" },
+    { key: "compras",       label: "Listado de Compras" },
+    { key: "ventas",        label: "Listado de Ventas" },
+    { key: "presupuestos",  label: "Presupuestos" },
+  ];
+
+  const getKeywords = (key) => busConfig.find(c => c.key === key)?.keywords || '';
+  const setKeywords = (key, val) => {
+    setBusConfig(prev => {
+      const existe = prev.find(c => c.key === key);
+      if (existe) return prev.map(c => c.key === key ? { ...c, keywords: val } : c);
+      return [...prev, { key, keywords: val }];
+    });
+  };
 
   const actualizar = (i, label) => setLista((p) => p.map((t, idx) => idx === i ? { ...t, label } : t));
   const eliminar   = (i) => setLista((p) => p.filter((_, idx) => idx !== i));
@@ -78,13 +101,16 @@ function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
   };
 
   const guardar = async () => {
-    await onGuardar(lista);
+    const configFinal = busConfig
+      .filter(c => c.keywords.trim())
+      .map(c => ({ key: c.key, keywords: c.keywords.split(',').map(k => k.trim()).filter(Boolean) }));
+    await onGuardar(lista, configFinal);
     setGuardado(true);
     setTimeout(() => setGuardado(false), 3000);
   };
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: 700, margin: "0 auto" }}>
+    <div style={{ padding: "28px 24px", maxWidth: 800, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button onClick={onVolver}
           style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -96,7 +122,8 @@ function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
         </div>
       </div>
 
-      <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
+      {/* Tipos de comprobantes */}
+      <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", marginBottom: 24 }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 700, fontSize: 15 }}>Tipos de comprobantes</span>
           <button onClick={() => setLista(TIPOS_DEFAULT.map((t) => ({ ...t })))}
@@ -104,7 +131,6 @@ function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
             Restaurar originales
           </button>
         </div>
-
         <div style={{ padding: "8px 0" }}>
           {lista.map((t, i) => (
             <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
@@ -118,7 +144,6 @@ function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
             </div>
           ))}
         </div>
-
         <div style={{ padding: "16px 20px", borderTop: `2px solid ${C.border}`, background: C.bg }}>
           <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Agregar nuevo tipo</div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -134,15 +159,36 @@ function ConfigScreen({ tipos, onGuardar, onVolver, guardando }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <button onClick={guardar} disabled={guardando}
-          style={{ width: "100%", background: guardado ? C.success : C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", transition: "background .3s" }}>
-          {guardando ? "⏳ Guardando en Google Sheets…" : guardado ? "✓ Guardado — visible en todas las PCs" : "💾 Guardar cambios"}
-        </button>
+      {/* Palabras clave del buscador */}
+      <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", marginBottom: 24 }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>🔍 Palabras clave del buscador</div>
+          <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>
+            Agregá términos separados por coma para que cada módulo sea más fácil de encontrar.
+          </div>
+        </div>
+        <div style={{ padding: "8px 0" }}>
+          {MODULOS_BUSCADOR.map((m, i) => (
+            <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < MODULOS_BUSCADOR.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ minWidth: 180, fontWeight: 600, fontSize: 13, color: C.navy }}>{m.label}</div>
+              <input
+                value={getKeywords(m.key)}
+                onChange={e => setKeywords(m.key, e.target.value)}
+                placeholder="ej: pago, orden, proveedor..."
+                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.text, background: C.bg }}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
+      <button onClick={guardar} disabled={guardando}
+        style={{ width: "100%", background: guardado ? C.success : C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", transition: "background .3s" }}>
+        {guardando ? "⏳ Guardando en Google Sheets…" : guardado ? "✓ Guardado — visible en todas las PCs" : "💾 Guardar cambios"}
+      </button>
+
       <div style={{ marginTop: 14, background: C.accentBg, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.accentDark }}>
-        <strong>💡</strong> Los cambios se guardan en Google Sheets y se aplican automáticamente en todas las PCs la próxima vez que abran la app.
+        <strong>💡</strong> Los cambios se guardan en Google Sheets y se aplican en todas las PCs la próxima vez que abran MICOFY.
       </div>
     </div>
   );
@@ -194,102 +240,74 @@ RECIBOS DE SUELDO:
 DDJJ FORMULARIO 931 (SUSS/ARCA):
 - "emisor_razon_social" = "ARCA - S.U.S.S." (el organismo recaudador, NUNCA el contribuyente)
 - "emisor_cuit" = "33-69345023-9" (CUIT de ARCA)
-- "receptor_razon_social" = nombre del contribuyente (el que figura como "Apellido y Nombre o Razón Social")
-- "receptor_cuit" = CUIT del contribuyente (el que figura en el formulario)
+- "receptor_razon_social" = nombre del contribuyente
+- "receptor_cuit" = CUIT del contribuyente
 - "total" = suma de la sección VIII únicamente
 - "contribuciones_ss" = Contribuciones de Seguridad Social (ítem 351)
 - "aportes_ss" = Aportes de Seguridad Social (ítem 301)
 - "lrt" = L.R.T. a pagar (ítem 312)
 - "seguro_vida" = Seguro Colectivo de Vida Obligatorio (ítem 028)
-- Los ítems son SOLO los conceptos de la sección VIII
-- La "Detracción art. 23 Ley 27.541" NO es un ítem, es un ajuste interno ya descontado
 - "neto_gravado" = Suma de remuneraciones
 - "periodo" = Mes-Año del formulario (ej: "04/2026")
 
 CERTIFICADO DE RETENCIÓN GANANCIAS:
 - "tipo" = el tipo que corresponda a "Retención Ganancias" de la lista disponible
-- "emisor_razon_social" = formato "ARCA - [razón social del agente de retención]" (ej: "ARCA - Conuar S.A.")
-- "emisor_cuit" = CUIT del agente de retención (quien emite el certificado)
-- "receptor_razon_social" = el sujeto retenido (quien recibe el pago y sufre la retención)
-- "receptor_cuit" = CUIT del sujeto retenido
-- "numero_comprobante" = número del certificado de retención
-- "fecha_emision" = fecha del certificado
-- "total" = monto retenido (el importe efectivamente retenido, NO el monto del comprobante original)
-- "neto_gravado" = monto sujeto a retención/percepción (NO el monto total del comprobante)
-- "observaciones" = impuesto, régimen, alícuota, comprobante que origina la retención
-
-CERTIFICADO DE RETENCIÓN IIBB (Ingresos Brutos):
-- "tipo" = el tipo que corresponda a "Retención IIBB" de la lista disponible
-- "emisor_razon_social" = formato "ARBA - [razón social del agente de retención]" o "CM - [razón social]" si es Convenio Multilateral
+- "emisor_razon_social" = formato "ARCA - [razón social del agente de retención]"
 - "emisor_cuit" = CUIT del agente de retención
 - "receptor_razon_social" = el sujeto retenido
 - "receptor_cuit" = CUIT del sujeto retenido
-- "numero_comprobante" = número del certificado
-- "fecha_emision" = fecha del certificado
 - "total" = monto retenido
 - "neto_gravado" = monto sujeto a retención
-- "jurisdiccion" = provincia o "Convenio Multilateral"
-- "observaciones" = régimen, alícuota, comprobante que origina la retención
+- "observaciones" = impuesto, régimen, alícuota, comprobante que origina la retención
 
-IMPUESTOS (municipales, provinciales, nacionales):
-- Extraé tipo de impuesto, período, vencimiento y monto a pagar
-- "emisor_razon_social" = "ARBA" o "Comisión Arbitral" según corresponda (el organismo, NUNCA el contribuyente)
+CERTIFICADO DE RETENCIÓN IIBB:
+- "tipo" = el tipo que corresponda a "Retención IIBB" de la lista disponible
+- "emisor_razon_social" = formato "ARBA - [razón social]" o "CM - [razón social]"
+- "emisor_cuit" = CUIT del agente de retención
+- "receptor_razon_social" = el sujeto retenido
+- "receptor_cuit" = CUIT del sujeto retenido
+- "total" = monto retenido
+- "jurisdiccion" = provincia o "Convenio Multilateral"
+
+IMPUESTOS:
+- "emisor_razon_social" = "ARBA" o "Comisión Arbitral"
 - "receptor_razon_social" = nombre del contribuyente
 - "receptor_cuit" = CUIT del contribuyente
 - "jurisdiccion" = provincia o "Convenio Multilateral"
 - "anticipo_imp_determinado" = impuesto determinado del período
-- "valores_restan" = anticipos/pagos que restan
-- "valores_suman" = recargos/intereses que suman
-- "a_favor_contribuyente" = saldo a favor del contribuyente
-- "a_favor_fisco" = saldo a favor del fisco (a pagar)
 - "a_pagar" = monto final a ingresar
-- "total" = monto final a pagar (igual a "a_pagar")
+- "total" = monto final a pagar
 
-DDJJ IVA (ARCA):
-- "emisor_razon_social" = "ARCA - Agencia de Recaudación y Control Aduanero" (NUNCA el contribuyente)
+DDJJ IVA:
+- "emisor_razon_social" = "ARCA - Agencia de Recaudación y Control Aduanero"
 - "emisor_cuit" = "33-69345023-9"
 - "receptor_razon_social" = nombre del contribuyente
-- "receptor_cuit" = CUIT del contribuyente
-- "debito_fiscal" = total débito fiscal del período
-- "credito_fiscal" = total crédito fiscal del período
-- "saldo_tecnico_anterior" = saldo técnico a favor del período anterior
-- "saldo_tecnico" = saldo técnico resultante del período
-- "retenciones_pagos_cuenta" = total retenciones, percepciones y pagos a cuenta
-- "saldo_libre_disponibilidad" = saldo de libre disponibilidad a favor del contribuyente
+- "debito_fiscal" = total débito fiscal
+- "credito_fiscal" = total crédito fiscal
+- "saldo_tecnico_anterior" = saldo técnico anterior
+- "saldo_tecnico" = saldo técnico resultante
+- "retenciones_pagos_cuenta" = retenciones y pagos a cuenta
+- "saldo_libre_disponibilidad" = saldo a favor
 - "total" = monto a pagar (0 si hay saldo a favor)
 
-EXTRACTO BANCARIO (Banco Credicoop y otros bancos):
+EXTRACTO BANCARIO:
 - "emisor_razon_social" = nombre del banco
 - "emisor_cuit" = CUIT del banco (Credicoop: 30-57142763-9)
-- "receptor_razon_social" = nombre del titular de la cuenta
-- "numero_comprobante" = número de cuenta o número de resumen
-- "fecha_emision" = fecha del resumen
-- "periodo" = período que cubre el resumen (ej: "Enero 2026")
-- "comisiones_bancarias" = suma de comisiones mantenimiento + transferencias + tarjetas
-- "impuestos_debito_credito" = suma Ley 25.413 s/débitos + s/créditos (SIEMPRE POSITIVO)
-- "percepcion_sircreb" = Recaudación SIRCREB + Percepción IVA RG 2408
-- "seguros_bancarios" = seguros exigidos por el banco sin factura propia
-- "iva_21" = IVA Débito Fiscal sobre comisiones bancarias
-- "total" = comisiones_bancarias + impuestos_debito_credito + percepcion_sircreb + seguros_bancarios + iva_21
-- Extraé cada concepto como ítem en "items" — NUNCA montos negativos salvo "devolución" o "reintegro"
-- EXCLUIR completamente de ítems y del total los débitos automáticos de servicios externos:
-  · Servicios de telefonía, internet, streaming (Personal Flow, Pay Per Tic, etc.)
-  · Seguros de terceros con factura propia (CNP Assurances, Federación Patronal, Mercantil Andina, etc.)
-  · Cualquier débito automático de proveedor externo que emite factura por separado
-- En "observaciones" indicá número de cuenta y listá los débitos automáticos excluidos
+- "receptor_razon_social" = nombre del titular
+- "comisiones_bancarias" = suma comisiones
+- "impuestos_debito_credito" = Ley 25.413 (SIEMPRE POSITIVO)
+- "percepcion_sircreb" = SIRCREB + Percepción IVA RG 2408
+- "seguros_bancarios" = seguros exigidos por el banco
+- "iva_21" = IVA sobre comisiones
+- "total" = suma de todos los conceptos bancarios
+- EXCLUIR débitos de servicios externos con factura propia
 
 REGLAS GENERALES:
-- Elegí el tipo más específico disponible de la lista
 - Si un campo no existe, usá null
 - Los montos siempre como números sin símbolos
-- "periodo" = período de facturación o declaración (ej: "01/2026", "Enero 2026") — NUNCA pongas la moneda en este campo
-- "moneda" = ARS, USD, EUR u otro — va SOLO en el campo moneda
-- "total" es OBLIGATORIO — buscá "Importe Total", "Total a Pagar", "Importe a Abonar" o similar. Si no lo encontrás, calculalo sumando: neto_gravado + iva_105 + iva_21 + iva_27 + percepciones + otros_tributos. NUNCA dejes total en null si hay montos en el documento
-- IDENTIFICACIÓN DEL TIPO DE FACTURA — prioridad absoluta:
-  · Buscá el texto "FACTURA A", "FACTURA B" o "FACTURA C" en el encabezado
-  · O el código dentro del recuadro de la letra: código 001 = Factura A, código 006 = Factura B, código 011 = Factura C
-  · NO te bases en el diseño gráfico ni en el contexto — solo en el texto y código
-  · Si dice "FACTURA A" con código 001 → tipo = "factura_a" aunque el documento sea de obra social, medicina prepaga u otro servicio
+- "periodo" = período de facturación — NUNCA la moneda
+- "moneda" = ARS, USD, EUR u otro
+- "total" es OBLIGATORIO — calculalo si no está explícito
 
 Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
@@ -390,20 +408,6 @@ async function guardarItemsEnSheets(datos, contactoCategoria) {
   } catch (e) { console.error("Error guardando ítems:", e); }
 }
 
-async function clasificarContacto(cuit, nombre) {
-  try {
-    const resp = await fetch("/api/sheets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "buscar_contacto", data: { cuit, nombre } }),
-    });
-    const data = await resp.json();
-    return data.encontrado ? data.contacto : null;
-  } catch (e) { return null; }
-}
-
-let _contactosCache = null;
-
 async function cargarContactosCache() {
   try {
     const resp = await fetch("/api/sheets", {
@@ -503,11 +507,28 @@ async function cargarTiposDeSheets() {
   } catch (e) { return null; }
 }
 
-async function guardarTiposEnSheets(tipos) {
+async function cargarBuscadorConfig() {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "get_buscador_config" }),
+    });
+    const data = await resp.json();
+    return data.config || [];
+  } catch (e) { return []; }
+}
+
+async function guardarConfigEnSheets(tipos, buscadorConfig) {
   await fetch("/api/sheets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "save_tipos", data: { tipos } }),
+  });
+  await fetch("/api/sheets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "save_buscador_config", data: { config: buscadorConfig } }),
   });
 }
 
@@ -532,36 +553,39 @@ const Grid2 = ({ a, b }) => (
 
 // ─── App principal ────────────────────────────────────────────────────────────
 export default function App() {
-  const [tipos, setTipos]           = useState(TIPOS_DEFAULT);
-  const [comp, setComp]             = useState([]);
-  const [drag, setDrag]             = useState(false);
-  const [selId, setSelId]           = useState(null);
+  const [tipos, setTipos]                 = useState(TIPOS_DEFAULT);
+  const [buscadorConfig, setBuscadorConfig] = useState([]);
+  const [comp, setComp]                   = useState([]);
+  const [drag, setDrag]                   = useState(false);
+  const [selId, setSelId]                 = useState(null);
   const [seleccionados, setSeleccionados] = useState(new Set());
   const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
-  const [fTipo, setFTipo]           = useState("todos");
-  const [fEst, setFEst]             = useState("todos");
-  const [q, setQ]                   = useState("");
-  const [editing, setEditing]       = useState(false);
-  const [editD, setEditD]           = useState({});
-  const [cargando, setCargando]     = useState(true);
-  const [eliminando, setEliminando] = useState(false);
+  const [fTipo, setFTipo]                 = useState("todos");
+  const [fEst, setFEst]                   = useState("todos");
+  const [q, setQ]                         = useState("");
+  const [editing, setEditing]             = useState(false);
+  const [editD, setEditD]                 = useState({});
+  const [cargando, setCargando]           = useState(true);
+  const [eliminando, setEliminando]       = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla]     = useState("lista");
+  const [pantalla, setPantalla]           = useState("home");
   const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
   useEffect(() => {
-    Promise.all([cargarTiposDeSheets(), cargarDeSheets()]).then(([tiposGuardados, datos]) => {
+    Promise.all([cargarTiposDeSheets(), cargarDeSheets(), cargarBuscadorConfig()]).then(([tiposGuardados, datos, busConfig]) => {
       if (tiposGuardados && tiposGuardados.length > 0) setTipos(tiposGuardados);
       setComp(datos);
+      setBuscadorConfig(busConfig);
       setCargando(false);
     });
   }, []);
 
-  const handleGuardarTipos = async (nuevosTipos) => {
+  const handleGuardarConfig = async (nuevosTipos, nuevaBusConfig) => {
     setGuardandoTipos(true);
-    await guardarTiposEnSheets(nuevosTipos);
+    await guardarConfigEnSheets(nuevosTipos, nuevaBusConfig);
     setTipos(nuevosTipos);
+    setBuscadorConfig(nuevaBusConfig);
     setGuardandoTipos(false);
   };
 
@@ -579,7 +603,6 @@ export default function App() {
     for (const item of items) {
       try {
         const datos = await procesarConClaude(item.file, tipos);
-
         const contactoEmisor = buscarEnCache(contactosCache, datos.emisor_cuit, datos.emisor_razon_social);
 
         if (contactoEmisor) {
@@ -598,7 +621,6 @@ export default function App() {
         }
 
         const estado = (datos.confianza === "baja" || !datos.contacto_clasificado) ? "revisar" : "procesado";
-
         setComp((p) => p.map((c) => c.id === item.id ? { ...c, estado, datos } : c));
         await guardarEnSheets({ ...item, estado, datos });
         await guardarItemsEnSheets(datos, contactoEmisor?.categoria_costo || "");
@@ -696,11 +718,8 @@ export default function App() {
   };
 
   const toggleTodos = () => {
-    if (seleccionados.size === filtrados.length) {
-      setSeleccionados(new Set());
-    } else {
-      setSeleccionados(new Set(filtrados.map(c => c.id)));
-    }
+    if (seleccionados.size === filtrados.length) setSeleccionados(new Set());
+    else setSeleccionados(new Set(filtrados.map(c => c.id)));
   };
 
   const eliminarMasivo = async () => {
@@ -711,9 +730,7 @@ export default function App() {
     const aEliminar = comp
       .filter(c => seleccionados.has(c.id) && c.sheetRowIndex !== null)
       .sort((a, b) => b.sheetRowIndex - a.sheetRowIndex);
-    for (const c of aEliminar) {
-      await eliminarDeSheets(c.sheetRowIndex);
-    }
+    for (const c of aEliminar) { await eliminarDeSheets(c.sheetRowIndex); }
     setSeleccionados(new Set());
     setSelId(null);
     const refreshed = await cargarDeSheets();
@@ -725,49 +742,52 @@ export default function App() {
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
-  // ─── Header compartido ────────────────────────────────────────────────────
+  // ─── Header ───────────────────────────────────────────────────────────────
   const Header = () => (
     <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPantalla("home")}>
         <div style={{ width: 36, height: 36, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff" }}>M</div>
         <div>
           <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>MICOFY</div>
-          <div style={{ color: "#7a9cc8", fontSize: 11 }}>Panel principal · IA integrada · Google Sheets</div>
+          <div style={{ color: "#7a9cc8", fontSize: 11 }}>Sistema de gestión · Sermetales</div>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
         {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
-        <button onClick={() => setPantalla(pantalla === "pagos" ? "lista" : "pagos")}
-          style={{ background: pantalla === "pagos" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          💳 Pagos
-        </button>
-        <button onClick={() => setPantalla(pantalla === "cheques" ? "lista" : "cheques")}
-          style={{ background: pantalla === "cheques" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          🏦 Cheques
-        </button>
-        <button onClick={() => setPantalla(pantalla === "contactos" ? "lista" : "contactos")}
-          style={{ background: pantalla === "contactos" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          👥 Contactos
-        </button>
+        {["home","digitalizador","pagos","cheques","contactos","config"].map(p => {
+          const labels = { home: "🏠 Inicio", digitalizador: "📄 Digitalizador", pagos: "💳 Pagos", cheques: "🏦 Cheques", contactos: "👥 Contactos", config: "⚙ Config" };
+          return (
+            <button key={p} onClick={() => setPantalla(p === pantalla ? "home" : p)}
+              style={{ background: pantalla === p ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+              {labels[p]}
+            </button>
+          );
+        })}
         <button onClick={() => window.open("https://docs.google.com/spreadsheets/d/1o7jI-MoDJ4m-b9EDy5ClZoEMRYhWCphcn5iORJu6gIw/edit", "_blank")}
-          style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          📊 Base de datos
-        </button>
-        <button onClick={() => setPantalla(pantalla === "config" ? "lista" : "config")}
-          style={{ background: pantalla === "config" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-          ⚙ Configuración
+          style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+          📊 Sheets
         </button>
         <div style={{ width: 34, height: 34, background: C.navyLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, border: `2px solid ${C.accent}` }}>HM</div>
       </div>
     </div>
   );
 
+  // ─── Pantallas ─────────────────────────────────────────────────────────────
+  if (pantalla === "home") {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
+        <Header />
+        <HomeScreen onNavegar={(key) => setPantalla(key)} buscadorConfig={buscadorConfig} />
+      </div>
+    );
+  }
+
   if (pantalla === "pagos") {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
-        <PagosScreen onVolver={() => setPantalla("lista")} />
+        <PagosScreen onVolver={() => setPantalla("home")} />
       </div>
     );
   }
@@ -776,7 +796,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
-        <CarteraChequesScreen onVolver={() => setPantalla("lista")} />
+        <CarteraChequesScreen onVolver={() => setPantalla("home")} />
       </div>
     );
   }
@@ -785,7 +805,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
-        <ContactosScreen onVolver={() => setPantalla("lista")} />
+        <ContactosScreen onVolver={() => setPantalla("home")} />
       </div>
     );
   }
@@ -794,16 +814,16 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
-        <ConfigScreen tipos={tipos} onGuardar={handleGuardarTipos} onVolver={() => setPantalla("lista")} guardando={guardandoTipos} />
+        <ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} />
       </div>
     );
   }
 
+  // ─── Digitalizador ─────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
       <Header />
 
-      {/* Stats */}
       <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "14px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, maxWidth: 900 }}>
           {[
@@ -820,13 +840,10 @@ export default function App() {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ padding: "20px 24px", maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: sel ? "1fr 440px" : "1fr", gap: 20, alignItems: "start" }}>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* Drop zone */}
             <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop} onClick={() => fileRef.current.click()}
               style={{ background: drag ? C.accentBg : C.white, border: `2px dashed ${drag ? C.accent : "#b8c4d8"}`, borderRadius: 14, padding: "16px 20px", textAlign: "center", cursor: "pointer", transition: "all .2s", boxShadow: C.shadow }}>
               <div style={{ fontSize: 26, marginBottom: 6 }}>⬆️</div>
@@ -839,7 +856,6 @@ export default function App() {
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display: "none" }} onChange={(e) => procesar(e.target.files)} />
             </div>
 
-            {/* Filters */}
             <div style={{ background: C.white, borderRadius: 12, padding: 16, boxShadow: C.shadow, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ position: "relative" }}>
                 <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>🔍</span>
@@ -868,12 +884,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* Barra de acciones masivas */}
             {seleccionados.size > 0 && (
               <div style={{ background: C.navy, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
-                <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                  {seleccionados.size} documento{seleccionados.size > 1 ? "s" : ""} seleccionado{seleccionados.size > 1 ? "s" : ""}
-                </span>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{seleccionados.size} documento{seleccionados.size > 1 ? "s" : ""} seleccionado{seleccionados.size > 1 ? "s" : ""}</span>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setSeleccionados(new Set())}
                   style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 7, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -886,16 +899,12 @@ export default function App() {
               </div>
             )}
 
-            {/* Table */}
             <div style={{ background: C.white, borderRadius: 12, boxShadow: C.shadow, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${C.border}` }}>
                     <th style={{ padding: "11px 14px", width: 36 }}>
-                      <input type="checkbox"
-                        checked={filtrados.length > 0 && seleccionados.size === filtrados.length}
-                        onChange={toggleTodos}
-                        style={{ cursor: "pointer", width: 16, height: 16 }} />
+                      <input type="checkbox" checked={filtrados.length > 0 && seleccionados.size === filtrados.length} onChange={toggleTodos} style={{ cursor: "pointer", width: 16, height: 16 }} />
                     </th>
                     {["Proveedor", "Tipo", "Comprobante", "Fecha", "Neto", "IVA", "Total", "Estado"].map((h) => (
                       <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
@@ -913,8 +922,7 @@ export default function App() {
                       onMouseEnter={(e) => { if (!seleccionados.has(c.id) && c.id !== selId) e.currentTarget.style.background = "#f5f7ff"; }}
                       onMouseLeave={(e) => { if (!seleccionados.has(c.id) && c.id !== selId) e.currentTarget.style.background = "transparent"; }}>
                       <td style={{ padding: "11px 14px", width: 36 }} onClick={e => { e.stopPropagation(); toggleSeleccion(c.id); }}>
-                        <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)}
-                          style={{ cursor: "pointer", width: 16, height: 16 }} />
+                        <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)} style={{ cursor: "pointer", width: 16, height: 16 }} />
                       </td>
                       <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>
                         {c.estado === "procesando"
@@ -946,7 +954,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Panel derecho */}
           {sel && (
             <div style={{ position: "sticky", top: 76, borderRadius: 14, overflow: "hidden", boxShadow: C.shadowLg, maxHeight: "calc(100vh - 96px)", overflowY: "auto" }}>
               <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -982,12 +989,8 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>Datos extraídos</span>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {sel.datos.contacto_clasificado === true && (
-                        <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>✓ Clasificado</span>
-                      )}
-                      {sel.datos.contacto_clasificado === false && (
-                        <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>⚠ Sin clasificar</span>
-                      )}
+                      {sel.datos.contacto_clasificado === true && <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>✓ Clasificado</span>}
+                      {sel.datos.contacto_clasificado === false && <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}44`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>⚠ Sin clasificar</span>}
                       <span style={{ background: sel.datos.confianza === "alta" ? C.successBg : sel.datos.confianza === "media" ? C.warningBg : C.dangerBg, color: sel.datos.confianza === "alta" ? C.success : sel.datos.confianza === "media" ? C.warning : C.danger, border: "1px solid currentColor", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
                         Confianza {sel.datos.confianza}
                       </span>
@@ -996,25 +999,11 @@ export default function App() {
 
                   {sel.datos.contacto_clasificado === true && (
                     <div style={{ background: C.successBg, border: `1px solid ${C.success}33`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Tipo</div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_tipo || "—"}</div>
-                      </div>
-                      {sel.datos.contacto_subtipo && (
-                        <div>
-                          <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Subtipo</div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_subtipo}</div>
-                        </div>
-                      )}
-                      {sel.datos.contacto_categoria && (
-                        <div>
-                          <div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Categoría Costo</div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_categoria}</div>
-                        </div>
-                      )}
+                      <div><div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Tipo</div><div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_tipo || "—"}</div></div>
+                      {sel.datos.contacto_subtipo && <div><div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Subtipo</div><div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_subtipo}</div></div>}
+                      {sel.datos.contacto_categoria && <div><div style={{ fontSize: 10, color: C.success, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Categoría Costo</div><div style={{ fontSize: 13, fontWeight: 600 }}>{sel.datos.contacto_categoria}</div></div>}
                     </div>
                   )}
-
                   {sel.datos.contacto_clasificado === false && (
                     <div style={{ background: C.warningBg, border: `1px solid ${C.warning}33`, borderRadius: 8, padding: "10px 14px" }}>
                       <div style={{ fontSize: 13, color: C.warning, fontWeight: 600 }}>⚠ CUIT {sel.datos.emisor_cuit || "desconocido"} no está en Contactos</div>
@@ -1036,9 +1025,7 @@ export default function App() {
                     <>
                       <Div label="Detalle de ítems" />
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                        <thead>
-                          <tr>{["Descripción", "Cant.", "P. Unit.", "Total"].map((h) => <th key={h} style={{ textAlign: "left", color: C.textMuted, fontWeight: 700, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, fontSize: 10, textTransform: "uppercase" }}>{h}</th>)}</tr>
-                        </thead>
+                        <thead><tr>{["Descripción", "Cant.", "P. Unit.", "Total"].map((h) => <th key={h} style={{ textAlign: "left", color: C.textMuted, fontWeight: 700, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, fontSize: 10, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
                         <tbody>
                           {sel.datos.items.map((it, i) => (
                             <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -1055,16 +1042,12 @@ export default function App() {
 
                   <Div label="Totales" />
                   <div style={{ background: C.bg, borderRadius: 8, padding: "12px 14px" }}>
-                    {[
-                      ["Neto gravado", sel.datos.neto_gravado],
-                      ["IVA 10.5%", sel.datos.iva_105], ["IVA 21%", sel.datos.iva_21], ["IVA 27%", sel.datos.iva_27],
-                      ["Percepciones", sel.datos.percepciones],
-                      ["Otros tributos", sel.datos.otros_tributos],
-                    ].filter(([, v]) => v != null && v !== 0).map(([k, v]) => (
-                      <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-                        <span style={{ color: C.textSec }}>{k}</span><span>{fmtPeso(v)}</span>
-                      </div>
-                    ))}
+                    {[["Neto gravado", sel.datos.neto_gravado], ["IVA 10.5%", sel.datos.iva_105], ["IVA 21%", sel.datos.iva_21], ["IVA 27%", sel.datos.iva_27], ["Percepciones", sel.datos.percepciones], ["Otros tributos", sel.datos.otros_tributos]]
+                      .filter(([, v]) => v != null && v !== 0).map(([k, v]) => (
+                        <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+                          <span style={{ color: C.textSec }}>{k}</span><span>{fmtPeso(v)}</span>
+                        </div>
+                      ))}
                     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 4, fontWeight: 800, fontSize: 16 }}>
                       <span>TOTAL</span><span style={{ color: C.accent }}>{fmtPeso(sel.datos.total)}</span>
                     </div>
@@ -1111,14 +1094,7 @@ export default function App() {
                         {tipos.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                       </select>
                     </div>
-                    {[
-                      ["emisor_razon_social","Emisor razón social"],["emisor_cuit","CUIT Emisor"],
-                      ["receptor_razon_social","Receptor / Nombre"],["receptor_cuit","CUIT Receptor"],
-                      ["fecha_emision","Fecha emisión (YYYY-MM-DD)"],["fecha_vencimiento","Fecha vencimiento"],
-                      ["numero_comprobante","N° Comprobante"],["neto_gravado","Neto gravado"],
-                      ["iva_21","IVA 21%"],["percepciones","Percepciones"],
-                      ["otros_tributos","Otros tributos"],["total","Total"],
-                    ].map(([k, label]) => (
+                    {[["emisor_razon_social","Emisor razón social"],["emisor_cuit","CUIT Emisor"],["receptor_razon_social","Receptor / Nombre"],["receptor_cuit","CUIT Receptor"],["fecha_emision","Fecha emisión (YYYY-MM-DD)"],["fecha_vencimiento","Fecha vencimiento"],["numero_comprobante","N° Comprobante"],["neto_gravado","Neto gravado"],["iva_21","IVA 21%"],["percepciones","Percepciones"],["otros_tributos","Otros tributos"],["total","Total"]].map(([k, label]) => (
                       <div key={k}>
                         <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
                         <input value={editD[k] ?? ""} onChange={(e) => setEditD((p) => ({ ...p, [k]: e.target.value }))}
@@ -1133,12 +1109,8 @@ export default function App() {
                 </div>
               )}
 
-              {sel.estado === "error" && (
-                <div style={{ background: C.dangerBg, padding: "14px 20px", color: C.danger, fontWeight: 600, fontSize: 13 }}>⚠ Error: {sel.error}</div>
-              )}
-              {sel.estado === "procesando" && (
-                <div style={{ background: C.blueBg, padding: "24px", textAlign: "center", color: C.blue, fontWeight: 600 }}>⚡ Analizando con IA…</div>
-              )}
+              {sel.estado === "error" && <div style={{ background: C.dangerBg, padding: "14px 20px", color: C.danger, fontWeight: 600, fontSize: 13 }}>⚠ Error: {sel.error}</div>}
+              {sel.estado === "procesando" && <div style={{ background: C.blueBg, padding: "24px", textAlign: "center", color: C.blue, fontWeight: 600 }}>⚡ Analizando con IA…</div>}
             </div>
           )}
         </div>
