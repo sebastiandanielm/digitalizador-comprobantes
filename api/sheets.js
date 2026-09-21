@@ -443,6 +443,77 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
+    // ── Buscador Config (columnas D y E de Configuracion) ────────────────────
+
+    if (action === 'get_buscador_config') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!A1:E50`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data2 = await r.json();
+      const rows = (data2.values || []).slice(1);
+      const config = rows
+        .filter(r => r[3]) // tiene función en col D
+        .map(r => ({
+          key: r[3] || '',
+          keywords: (r[4] || '').split(',').map(k => k.trim()).filter(Boolean),
+        }));
+      return res.status(200).json({ config });
+    }
+
+    if (action === 'save_buscador_config') {
+      // Leer primero para mantener cols A, B, C intactas
+      const r0 = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!A1:C50`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const existing = await r0.json();
+      const rows = existing.values || [];
+      // Armar nuevas filas con D y E según config enviada
+      const configMap = {};
+      (data.config || []).forEach(c => { configMap[c.key] = c.keywords.join(', '); });
+      const nuevasFilas = rows.map((row, i) => {
+        if (i === 0) return [...row, 'Funcion', 'Palabras clave'];
+        // Buscar si esta fila tiene una funcion configurada
+        const key = row[0] || '';
+        // Las filas de config de buscador van por key de módulo
+        return [...row, '', ''];
+      });
+      // Actualizar solo filas de buscador config (filas extra al final si no existen)
+      // Guardar config en nuevas filas
+      const configRows = (data.config || []).map(c => ['', '', '', c.key, c.keywords.join(', ')]);
+      // Buscar dónde están en el sheet actual o agregar
+      const r2 = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!D1:E50`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const existing2 = await r2.json();
+      const deRows = existing2.values || [];
+      // Construir valores para D:E
+      const header = ['Funcion', 'Palabras clave'];
+      const deValues = [header];
+      const configMap2 = {};
+      (data.config || []).forEach(c => { configMap2[c.key] = c.keywords.join(', '); });
+      // Filas de tipos (A:C) — poner vacío en D:E si no tienen config
+      for (let i = 1; i < rows.length; i++) {
+        deValues.push(['', '']);
+      }
+      // Agregar filas de config del buscador
+      (data.config || []).forEach(c => {
+        deValues.push([c.key, c.keywords.join(', ')]);
+      });
+      const startRow = 1;
+      const r3 = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!D1:E${deValues.length}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: deValues }),
+        }
+      );
+      return res.status(200).json(await r3.json());
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
