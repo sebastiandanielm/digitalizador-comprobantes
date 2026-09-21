@@ -770,6 +770,13 @@ export default function App() {
         <button onClick={() => setPantalla(pantalla === "config" ? "lista" : "config")}
           style={{ background: pantalla === "config" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
           ⚙ Configuración
+    <button onClick={() => window.open("https://docs.google.com/spreadsheets/d/1o7jI-MoDJ4m-b9EDy5ClZoEMRYhWCphcn5iORJu6gIw/edit", "_blank")}
+          style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+          📊 Base de datos
+        </button>
+        <button onClick={() => setPantalla(pantalla === "config" ? "lista" : "config")}
+          style={{ background: pantalla === "config" ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+          ⚙ Configuración
         </button>
         <div style={{ width: 34, height: 34, background: C.navyLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, border: `2px solid ${C.accent}` }}>HM</div>
       </div>
