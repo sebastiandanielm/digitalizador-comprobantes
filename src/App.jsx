@@ -4,6 +4,7 @@ import ContactosScreen from "./ContactosScreen.jsx";
 import CarteraChequesScreen from "./CarteraChequesScreen.jsx";
 import PagosScreen from "./PagosScreen.jsx";
 import HomeScreen from "./HomeScreen.jsx";
+import InsumosScreen from "./InsumosScreen.jsx";
 
 const C = {
   bg: "#f0f2f7", white: "#ffffff", border: "#e2e6f0",
@@ -568,7 +569,7 @@ export default function App() {
   const [cargando, setCargando]           = useState(true);
   const [eliminando, setEliminando]       = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla]           = useState("home");
+  const [pantalla, setPantalla]           = useState("home"); // "home"|"digitalizador"|"pagos"|"cheques"|"contactos"|"config"|"insumos"
   const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
@@ -755,8 +756,8 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {cargando && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⏳ Cargando…</span>}
         {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
-        {["home","digitalizador","pagos","cheques","contactos","config"].map(p => {
-          const labels = { home: "🏠 Inicio", digitalizador: "📄 Digitalizador", pagos: "💳 Pagos", cheques: "🏦 Cheques", contactos: "👥 Contactos", config: "⚙ Config" };
+        {["home","digitalizador","pagos","cheques","contactos","insumos","config"].map(p => {
+          const labels = { home: "🏠 Inicio", digitalizador: "📄 Digitalizador", pagos: "💳 Pagos", cheques: "🏦 Cheques", contactos: "👥 Contactos", insumos: "📦 Insumos", config: "⚙ Config" };
           return (
             <button key={p} onClick={() => setPantalla(p === pantalla ? "home" : p)}
               style={{ background: pantalla === p ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
@@ -815,6 +816,15 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
         <Header />
         <ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} />
+      </div>
+    );
+  }
+
+  if (pantalla === "insumos") {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
+        <Header />
+        <InsumosScreen onVolver={() => setPantalla("home")} />
       </div>
     );
   }
