@@ -147,9 +147,10 @@ export default function OrdenPagoScreen({ onVolver }) {
       setContactos(ctRows.slice(1)
         .map((r, i) => ({
           _idx: i, id: r[0]||"", cuit: r[1]||"", razon_social: r[2]||"",
-          tipo: r[3]||"", subtipo: r[4]||"", categoria_costo: r[5]||"",
-          condicion_pago: r[6]||"", contacto: r[7]||"", telefono: r[8]||"",
-          mail: r[9]||"", cbu: r[15]||"", banco: r[16]||"", alias: r[17]||"",
+          nombre_fantasia: r[3]||"",
+          tipo: r[4]||"", subtipo: r[5]||"", categoria_costo: r[6]||"",
+          condicion_pago: r[7]||"", contacto: r[8]||"", telefono: r[9]||"",
+          mail: r[10]||"", cbu: r[16]||"", banco: r[17]||"", alias: r[18]||"",
         }))
         .filter(c => c.tipo === "Proveedor")
       );
@@ -197,7 +198,9 @@ export default function OrdenPagoScreen({ onVolver }) {
 
   const proveedoresFiltrados = contactos.filter(c => {
     const s = busqProv.toLowerCase();
-    return c.razon_social.toLowerCase().includes(s) || c.cuit.includes(s);
+    return c.razon_social.toLowerCase().includes(s) ||
+           c.cuit.includes(s) ||
+           (c.nombre_fantasia||"").toLowerCase().includes(s);
   });
 
   const facturasProv = proveedor
@@ -452,7 +455,7 @@ export default function OrdenPagoScreen({ onVolver }) {
                 style={{ padding: "14px 16px", border: `2px solid ${proveedor?.cuit === c.cuit ? C.accent : C.border}`, borderRadius: 10, cursor: "pointer", background: proveedor?.cuit === c.cuit ? C.accentBg : C.white }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
                 onMouseLeave={e => e.currentTarget.style.borderColor = proveedor?.cuit === c.cuit ? C.accent : C.border}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.razon_social}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.razon_social}{c.nombre_fantasia && <span style={{ fontWeight: 400, color: C.textSec, fontSize: 13 }}> · {c.nombre_fantasia}</span>}</div>
                 <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
                   CUIT {c.cuit}
                   {c.condicion_pago && ` · Pago: ${c.condicion_pago}`}
