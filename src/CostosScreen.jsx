@@ -220,11 +220,12 @@ export default function CostosScreen({ onVolver }) {
 
       for (const row of compPeriodo) {
         const cuitEmisor = (row[7]||"").replace(/[-\s]/g,"");
-        const total      = parseFloat((row[16]||"0").replace(/\./g,"").replace(",",".")) || 0;
+        const totalStr   = (row[16]||"0").replace(/\$/g,"").replace(/\s/g,"").replace(/\./g,"").replace(",",".");
+        const total      = parseFloat(totalStr) || 0;
         const emisor     = row[6]||"";
         const estado     = row[21]||"";
 
-        if (estado === "revisar" || estado === "error") continue;
+        if (estado === "error") continue; // Solo ignora errores, procesa revisar y procesado
         if (total <= 0) continue;
 
         const contacto = contactosMap[cuitEmisor];
