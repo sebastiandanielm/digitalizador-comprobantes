@@ -150,7 +150,7 @@ export default async function handler(req, res) {
     if (action === 'append_contacto') {
       const c = data;
       const row = [
-        c.id||'', c.cuit||'', c.razon_social||'', c.tipo||'',
+        c.id||'', c.cuit||'', c.razon_social||'', c.nombre_fantasia||'', c.tipo||'',
         c.subtipo||'', c.categoria_costo||'', c.condicion_pago||'',
         c.contacto||'', c.telefono||'', c.mail||'',
         c.direccion||'', c.localidad||'', c.provincia||'', c.cp||'',
@@ -171,7 +171,7 @@ export default async function handler(req, res) {
     if (action === 'update_contacto') {
       const c = data;
       const row = [
-        c.id||'', c.cuit||'', c.razon_social||'', c.tipo||'',
+        c.id||'', c.cuit||'', c.razon_social||'', c.nombre_fantasia||'', c.tipo||'',
         c.subtipo||'', c.categoria_costo||'', c.condicion_pago||'',
         c.contacto||'', c.telefono||'', c.mail||'',
         c.direccion||'', c.localidad||'', c.provincia||'', c.cp||'',
@@ -180,7 +180,7 @@ export default async function handler(req, res) {
       ];
       const sheetRow = rowIndex + 2;
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A${sheetRow}:T${sheetRow}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A${sheetRow}:U${sheetRow}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -233,7 +233,7 @@ export default async function handler(req, res) {
         if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match) });
       }
       if (nombre) {
-        const match = dataRows.find(row => (row[2]||'').toLowerCase().includes(nombre.toLowerCase()));
+        const match = dataRows.find(row => (row[2]||'').toLowerCase().includes(nombre.toLowerCase()) || (row[3]||'').toLowerCase().includes(nombre.toLowerCase()));
         if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match), matchPorNombre: true });
       }
       return res.status(200).json({ encontrado: false });
@@ -523,12 +523,13 @@ export default async function handler(req, res) {
 function rowToContacto(row) {
   return {
     id: row[0]||'', cuit: row[1]||'', razon_social: row[2]||'',
-    tipo: row[3]||'', subtipo: row[4]||'', categoria_costo: row[5]||'',
-    condicion_pago: row[6]||'', contacto: row[7]||'', telefono: row[8]||'',
-    mail: row[9]||'', direccion: row[10]||'', localidad: row[11]||'',
-    provincia: row[12]||'', cp: row[13]||'', condicion_iva: row[14]||'',
-    cbu: row[15]||'', banco: row[16]||'', alias: row[17]||'',
-    preferencia_cheque: row[18]||'', notas: row[19]||''
+    nombre_fantasia: row[3]||'',
+    tipo: row[4]||'', subtipo: row[5]||'', categoria_costo: row[6]||'',
+    condicion_pago: row[7]||'', contacto: row[8]||'', telefono: row[9]||'',
+    mail: row[10]||'', direccion: row[11]||'', localidad: row[12]||'',
+    provincia: row[13]||'', cp: row[14]||'', condicion_iva: row[15]||'',
+    cbu: row[16]||'', banco: row[17]||'', alias: row[18]||'',
+    preferencia_cheque: row[19]||'', notas: row[20]||''
   };
 }
 
