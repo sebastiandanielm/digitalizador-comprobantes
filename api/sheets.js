@@ -552,6 +552,39 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
+    // ── Costos ────────────────────────────────────────────────────────────────
+
+    if (action === 'get_costos') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    if (action === 'append_costo') {
+      const row = data; // array directo
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    // ── Amortizaciones ────────────────────────────────────────────────────────
+
+    if (action === 'get_amortizaciones') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Amortizaciones`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
