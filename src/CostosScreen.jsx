@@ -163,6 +163,119 @@ export default function CostosScreen({ onVolver }) {
   });
 
   // Guardar costo manual
+  const [procesando, setProcesando] = useState(false);
+  const [msgProceso, setMsgProceso] = useState("");
+
+  const procesarPeriodoACostos = async () => {
+    setProcesando(true);
+    setMsgProceso("Leyendo comprobantes del período...");
+    try {
+      // 1. Leer comprobantes del período
+      const compData = await apiSheets("get");
+      const compRows = (compData.values || []).slice(1);
+      
+      // Filtrar por período — col S (índice 18)
+      const compPeriodo = compRows.filter(r => {
+        const periodoComp = r[18] || "";
+        // Comparar período MM/YYYY
+        return periodoComp.includes(periodo.split("/")[0]) && 
+               periodoComp.includes(periodo.split("/")[1]);
+      });
+
+      if (compPeriodo.length === 0) {
+        setMsgProceso("⚠ No hay comprobantes para el período " + periodo);
+        setProcesando(false);
+        return;
+      }
+
+      setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Leyendo contactos...`);
+
+      // 2. Leer contactos para obtener categoria y distribucion
+      const ctData = await apiSheets("get_contactos");
+      const ctRows = (ctData.values || []).slice(1);
+      const contactosMap = {};
+      ctRows.forEach(r => {
+        const cuit = (r[1]||"").replace(/[-\s]/g,"");
+        if (cuit) {
+          contactosMap[cuit] = {
+            razon_social:        r[2]||"",
+            nombre_fantasia:     r[3]||"",
+            categoria_costo:     r[6]||"",
+            distribucion_proceso: r[19]||"", // columna T
+          };
+        }
+      });
+
+      // 3. Leer costos ya existentes en el período para evitar duplicados
+      const costosExistentes = costos.filter(c => c.periodo === periodo);
+      const subcatsExistentes = new Set(
+        costosExistentes.map(c => `${c.subcategoria}|${c.proceso}`)
+      );
+
+      setMsgProceso("Clasificando y guardando en Costos...");
+
+      let agregados = 0;
+      let saltados  = 0;
+      let sinClasif = 0;
+
+      for (const row of compPeriodo) {
+        const cuitEmisor = (row[7]||"").replace(/[-\s]/g,"");
+        const total      = parseFloat((row[16]||"0").replace(/\./g,"").replace(",",".")) || 0;
+        const emisor     = row[6]||"";
+        const estado     = row[21]||"";
+
+        if (estado === "revisar" || estado === "error") continue;
+        if (total <= 0) continue;
+
+        const contacto = contactosMap[cuitEmisor];
+        if (!contacto || !contacto.categoria_costo || !contacto.distribucion_proceso) {
+          sinClasif++;
+          continue;
+        }
+
+        const procesos = contacto.distribucion_proceso
+          .split(",")
+          .map(p => p.trim())
+          .filter(Boolean);
+
+        if (procesos.length === 0) { sinClasif++; continue; }
+
+        const montoPorProceso = total / procesos.length;
+        const subcatKey = contacto.razon_social || contacto.nombre_fantasia || emisor;
+
+        for (const proceso of procesos) {
+          const key = `${subcatKey}|${proceso}`;
+          if (subcatsExistentes.has(key)) { saltados++; continue; }
+
+          const filaData = [
+            periodo,
+            proceso,
+            contacto.categoria_costo,
+            subcatKey,
+            montoPorProceso,
+            "", // costo_hora se calcula en el dashboard
+            emisor,
+          ];
+
+          await apiSheets("append_costo", filaData);
+          subcatsExistentes.add(key);
+          agregados++;
+        }
+      }
+
+      await cargar();
+      setMsgProceso(
+        `✓ Proceso completado: ${agregados} registros agregados · ${saltados} ya existían · ${sinClasif} sin clasificar en Contactos`
+      );
+      setTimeout(() => setMsgProceso(""), 8000);
+
+    } catch(e) {
+      console.error(e);
+      setMsgProceso("⚠ Error: " + e.message);
+    }
+    setProcesando(false);
+  };
+
   const guardarCosto = async () => {
     if (!formCosto.monto) return alert("Ingresá el monto");
     setGuardando(true);
@@ -341,10 +454,30 @@ export default function CostosScreen({ onVolver }) {
             </div>
           )}
 
-          {costosPeriodo.length === 0 && (
+          {/* Botón procesar período */}
+          <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>🔄 Procesar comprobantes del período</div>
+              <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>
+                Lee todos los comprobantes de <strong>{periodo}</strong> y los clasifica en Costos según la categoría y distribución de cada contacto. Solo agrega los que no existen aún.
+              </div>
+            </div>
+            <button onClick={procesarPeriodoACostos} disabled={procesando}
+              style={{ background: procesando ? "#ccc" : C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: procesando ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+              {procesando ? "⏳ Procesando..." : "▶ Procesar período"}
+            </button>
+          </div>
+
+          {msgProceso && (
+            <div style={{ background: msgProceso.startsWith("✓") ? C.successBg : msgProceso.startsWith("⚠") ? C.warningBg : C.accentBg, border: `1px solid ${msgProceso.startsWith("✓") ? C.success : msgProceso.startsWith("⚠") ? C.warning : C.accent}44`, borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, color: msgProceso.startsWith("✓") ? C.success : msgProceso.startsWith("⚠") ? C.warning : C.accent }}>
+              {msgProceso}
+            </div>
+          )}
+
+          {costosPeriodo.length === 0 && !procesando && (
             <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 40, textAlign: "center", color: C.textMuted }}>
               No hay costos cargados para el período {periodo}.<br/>
-              <span style={{ fontSize: 13 }}>Los costos se cargan automáticamente desde el Digitalizador o manualmente desde la pestaña "Cargar costo".</span>
+              <span style={{ fontSize: 13 }}>Apretá "Procesar período" para clasificar los comprobantes automáticamente.</span>
             </div>
           )}
         </div>
