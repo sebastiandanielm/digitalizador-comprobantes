@@ -32,19 +32,20 @@ function parsNum(s) {
 
 function estadoStock(insumo) {
   if ((insumo.notificar||"").toUpperCase() !== "SI") return "sin_alarma";
-  const stockUn = parsNum(insumo.stock_un);
-  const stockMin = parsNum(insumo.stock_min_un);
-  const stockKg = parsNum(insumo.peso_stock_kg);
-  const stockMinKg = parsNum(insumo.stock_minimo_kg);
-  // Usar unidades si hay stock_min_un, sino kg
-  if (stockMin > 0) {
+
+  const stockUn    = parsNum(insumo.stock_un);
+  const objetivoUn = parsNum(insumo.stock_min_un);  // Stock a tener en UN
+  const stockKg    = parsNum(insumo.peso_stock_kg);
+  const objetivoKg = parsNum(insumo.stock_minimo_kg); // Stock a tener en Kg
+
+  if (objetivoUn > 0) {
     if (stockUn <= 0) return "sin_stock";
-    if (stockUn <= stockMin) return "bajo";
+    if (stockUn < objetivoUn * 0.10) return "bajo";
     return "ok";
   }
-  if (stockMinKg > 0) {
+  if (objetivoKg > 0) {
     if (stockKg <= 0) return "sin_stock";
-    if (stockKg <= stockMinKg) return "bajo";
+    if (stockKg < objetivoKg * 0.10) return "bajo";
     return "ok";
   }
   return "sin_minimo";
