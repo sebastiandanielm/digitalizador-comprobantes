@@ -13,10 +13,9 @@ const C = {
 
 const TIPOS = ["Cliente", "Proveedor", "Organismo", "Empleado", "Banco", "Socio"];
 const CATEGORIAS = ["", "Materia Prima", "Servicio", "Impuesto", "Sueldo", "Flete", "Mantenimiento", "Bienes de Uso", "Otro"];
-const PREFERENCIAS = ["", "Cercano", "Lejano", "Indiferente"];
 
 const CONTACTO_VACIO = {
-  id: "", cuit: "", razon_social: "", tipo: "Cliente",
+  id: "", cuit: "", razon_social: "", nombre_fantasia: "", tipo: "Cliente",
   subtipo: "", categoria_costo: "", condicion_pago: "",
   contacto: "", telefono: "", mail: "",
   direccion: "", localidad: "", provincia: "", cp: "",
@@ -43,11 +42,10 @@ const TipoBadge = ({ tipo }) => {
 };
 
 async function apiSheets(action, data, rowIndex) {
-  const body = { action, data, rowIndex };
   const r = await fetch("/api/sheets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ action, data, rowIndex }),
   });
   return r.json();
 }
@@ -57,7 +55,7 @@ export default function ContactosScreen({ onVolver }) {
   const [cargando, setCargando]   = useState(true);
   const [q, setQ]                 = useState("");
   const [fTipo, setFTipo]         = useState("todos");
-  const [modal, setModal]         = useState(null); // null | "nuevo" | "editar"
+  const [modal, setModal]         = useState(null);
   const [form, setForm]           = useState(CONTACTO_VACIO);
   const [formIdx, setFormIdx]     = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -78,12 +76,13 @@ export default function ContactosScreen({ onVolver }) {
         setContactos(rows.slice(1).map((row, i) => ({
           _idx: i,
           id: row[0]||"", cuit: row[1]||"", razon_social: row[2]||"",
-          tipo: row[3]||"", subtipo: row[4]||"", categoria_costo: row[5]||"",
-          condicion_pago: row[6]||"", contacto: row[7]||"", telefono: row[8]||"",
-          mail: row[9]||"", direccion: row[10]||"", localidad: row[11]||"",
-          provincia: row[12]||"", cp: row[13]||"", condicion_iva: row[14]||"",
-          cbu: row[15]||"", banco: row[16]||"", alias: row[17]||"",
-          preferencia_cheque: row[18]||"", notas: row[19]||""
+          nombre_fantasia: row[3]||"",                    // ← NUEVO col D
+          tipo: row[4]||"", subtipo: row[5]||"", categoria_costo: row[6]||"",
+          condicion_pago: row[7]||"", contacto: row[8]||"", telefono: row[9]||"",
+          mail: row[10]||"", direccion: row[11]||"", localidad: row[12]||"",
+          provincia: row[13]||"", cp: row[14]||"", condicion_iva: row[15]||"",
+          cbu: row[16]||"", banco: row[17]||"", alias: row[18]||"",
+          preferencia_cheque: row[19]||"", notas: row[20]||""
         })));
       }
     } catch(e) { console.error(e); }
@@ -95,6 +94,7 @@ export default function ContactosScreen({ onVolver }) {
     if (q.trim()) {
       const s = q.toLowerCase();
       return c.razon_social.toLowerCase().includes(s) ||
+             c.nombre_fantasia.toLowerCase().includes(s) ||
              c.cuit.includes(s) ||
              c.contacto.toLowerCase().includes(s) ||
              c.mail.toLowerCase().includes(s);
@@ -109,23 +109,15 @@ export default function ContactosScreen({ onVolver }) {
     setModal("nuevo");
   };
 
-  const abrirEditar = (c) => {
-    setForm({ ...c });
-    setFormIdx(c._idx);
-    setModal("editar");
-  };
-
+  const abrirEditar = (c) => { setForm({ ...c }); setFormIdx(c._idx); setModal("editar"); };
   const cerrarModal = () => { setModal(null); setForm(CONTACTO_VACIO); setFormIdx(null); };
 
   const guardar = async () => {
     if (!form.razon_social.trim()) return alert("La razón social es obligatoria");
     setGuardando(true);
     try {
-      if (modal === "nuevo") {
-        await apiSheets("append_contacto", form);
-      } else {
-        await apiSheets("update_contacto", form, formIdx);
-      }
+      if (modal === "nuevo") await apiSheets("append_contacto", form);
+      else await apiSheets("update_contacto", form, formIdx);
       await cargar();
       cerrarModal();
     } catch(e) { console.error(e); }
@@ -145,6 +137,7 @@ export default function ContactosScreen({ onVolver }) {
   const exportar = () => {
     const rows = contactos.map(c => ({
       ID: c.id, CUIT: c.cuit, "Razón Social": c.razon_social,
+      "Nombre Fantasía": c.nombre_fantasia,
       Tipo: c.tipo, Subtipo: c.subtipo, "Categoría Costo": c.categoria_costo,
       "Condición Pago": c.condicion_pago, Contacto: c.contacto,
       Teléfono: c.telefono, Mail: c.mail,
@@ -178,6 +171,7 @@ export default function ContactosScreen({ onVolver }) {
           id: r["ID"] || String(maxId + i + 1).padStart(4, "0"),
           cuit: r["CUIT"] || "",
           razon_social: r["Razón Social"] || r["Razon Social"] || r["razon_social"] || "",
+          nombre_fantasia: r["Nombre Fantasía"] || r["Nombre Fantasia"] || r["nombre_fantasia"] || "",
           tipo: r["Tipo"] || "Cliente",
           subtipo: r["Subtipo"] || "",
           categoria_costo: r["Categoría Costo"] || r["Categoria Costo"] || "",
@@ -232,7 +226,6 @@ export default function ContactosScreen({ onVolver }) {
   return (
     <div style={{ padding: "24px", maxWidth: 1300, margin: "0 auto" }}>
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <button onClick={onVolver}
           style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -263,11 +256,10 @@ export default function ContactosScreen({ onVolver }) {
         </div>
       )}
 
-      {/* Filtros */}
       <div style={{ background: C.white, borderRadius: 12, padding: 16, boxShadow: C.shadow, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>🔍</span>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre, CUIT, mail o contacto..."
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre, nombre de fantasía, CUIT, mail..."
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 34px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.text, background: C.bg, outline: "none" }} />
         </div>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={ss}>
@@ -277,27 +269,29 @@ export default function ContactosScreen({ onVolver }) {
         <div style={{ color: C.textMuted, fontSize: 13 }}>{filtrados.length} resultados</div>
       </div>
 
-      {/* Tabla */}
       <div style={{ background: C.white, borderRadius: 12, boxShadow: C.shadow, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-              {["ID", "Razón Social / Nombre", "CUIT", "Tipo", "Subtipo", "Categoría Costo", "Contacto", "Teléfono", "Mail", ""].map(h => (
+              {["ID", "Razón Social", "Nombre Fantasía", "CUIT", "Tipo", "Subtipo", "Categoría", "Contacto", "Teléfono", "Mail", ""].map(h => (
                 <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan={10} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando contactos...</td></tr>
+              <tr><td colSpan={11} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>⏳ Cargando contactos...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={10} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{contactos.length === 0 ? "No hay contactos cargados" : "Sin resultados"}</td></tr>
+              <tr><td colSpan={11} style={{ padding: "48px 20px", textAlign: "center", color: C.textMuted }}>{contactos.length === 0 ? "No hay contactos cargados" : "Sin resultados"}</td></tr>
             ) : filtrados.map((c, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, transition: "background .1s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f5f7ff"}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace", color: C.textMuted }}>{c.id}</td>
                 <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600 }}>{c.razon_social}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec, fontStyle: c.nombre_fantasia ? "normal" : "italic" }}>
+                  {c.nombre_fantasia || "—"}
+                </td>
                 <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace", color: C.textSec }}>{c.cuit || "—"}</td>
                 <td style={{ padding: "10px 14px" }}><TipoBadge tipo={c.tipo} /></td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{c.subtipo || "—"}</td>
@@ -335,20 +329,22 @@ export default function ContactosScreen({ onVolver }) {
 
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* Sección principal */}
               <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 12 }}>
                 {inp("id", "ID")}
                 {inp("razon_social", "Razón Social / Nombre *", "Ej: Hollman Martin Nicolas")}
                 {inp("cuit", "CUIT / CUIL", "Ej: 20-30226102-5")}
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {inp("nombre_fantasia", "Nombre de Fantasía", "Ej: La Ferretería de Juan")}
                 {inp("tipo", "Tipo *", "", { select: true, options: TIPOS })}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {inp("subtipo", "Subtipo", "Ej: Ingresos Brutos")}
                 {inp("categoria_costo", "Categoría Costo", "", { select: true, options: CATEGORIAS })}
               </div>
 
-              {/* Línea divisoria */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12 }}>Datos de contacto</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -358,7 +354,6 @@ export default function ContactosScreen({ onVolver }) {
                 </div>
               </div>
 
-              {/* Dirección */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12 }}>Dirección</div>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px", gap: 12 }}>
@@ -369,7 +364,6 @@ export default function ContactosScreen({ onVolver }) {
                 </div>
               </div>
 
-              {/* Datos fiscales y pago */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12 }}>Datos fiscales y pago</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -383,12 +377,10 @@ export default function ContactosScreen({ onVolver }) {
                 </div>
               </div>
 
-              {/* Notas */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                 {inp("notas", "Notas adicionales")}
               </div>
 
-              {/* Botones */}
               <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
                 <button onClick={guardar} disabled={guardando}
                   style={{ flex: 1, background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "12px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
@@ -404,7 +396,6 @@ export default function ContactosScreen({ onVolver }) {
         </div>
       )}
 
-      {/* Modal confirmar eliminar */}
       {confirmEliminar && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: C.white, borderRadius: 14, padding: 28, maxWidth: 400, width: "90%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
