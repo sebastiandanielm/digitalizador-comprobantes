@@ -271,8 +271,8 @@ export default function ContactosScreen({ onVolver }) {
 
       <div style={{ background: C.white, borderRadius: 12, boxShadow: C.shadow, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ position: "sticky", top: 0, zIndex: 1, background: C.white }}>
-              <tr style={{ borderBottom: `2px solid ${C.border}` }}>
+          <thead>
+            <tr style={{ borderBottom: `2px solid ${C.border}` }}>
               {["ID", "Razón Social", "Nombre Fantasía", "CUIT", "Tipo", "Subtipo", "Categoría", "Contacto", "Teléfono", "Mail", ""].map(h => (
                 <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
               ))}
