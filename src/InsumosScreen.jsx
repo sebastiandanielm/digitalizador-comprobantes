@@ -25,11 +25,13 @@ const INSUMO_VACIO = {
 
 function parsNum(s) {
   if (!s) return 0;
-  return parseFloat(String(s).replace(/\./g,"").replace(",",".")) || 0;
+  // Eliminar texto como "Un", "Kg", "mm", espacios y símbolo $
+  const limpio = String(s).replace(/[A-Za-z$\s]/g,"").replace(/\./g,"").replace(",",".");
+  return parseFloat(limpio) || 0;
 }
 
 function estadoStock(insumo) {
-  if (insumo.notificar !== "Si") return "sin_alarma";
+  if ((insumo.notificar||"").toUpperCase() !== "SI") return "sin_alarma";
   const stockUn = parsNum(insumo.stock_un);
   const stockMin = parsNum(insumo.stock_min_un);
   const stockKg = parsNum(insumo.peso_stock_kg);
@@ -298,7 +300,7 @@ export default function InsumosScreen({ onVolver }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: C.navy }}>
             <tr>
-              {["Código", "Descripción / Búsqueda", "Tipo", "Material", "Proveedor", "Espesor", "Precio Pieza", "Fecha Precio", "Stock UN", "Stock Kg", "Mín. UN", "Estado", ""].map(h => (
+              {["Búsqueda / Descripción", "Proveedor", "Precio Tn (u$s)", "Precio ($)", "Fecha Precio", "Stock UN", "Stock Kg", "Alerta", ""].map(h => (
                 <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
@@ -318,22 +320,16 @@ export default function InsumosScreen({ onVolver }) {
                   style={{ borderBottom: `1px solid ${C.border}`, background: alarmaActiva ? "#fff5f5" : "transparent", transition: "background .1s" }}
                   onMouseEnter={e => e.currentTarget.style.background = alarmaActiva ? "#ffeeee" : "#f5f7ff"}
                   onMouseLeave={e => e.currentTarget.style.background = alarmaActiva ? "#fff5f5" : "transparent"}>
-                  <td style={{ padding: "10px 14px", fontSize: 11, fontFamily: "monospace", color: C.textMuted }}>{ins.codigo || "—"}</td>
-                  <td style={{ padding: "10px 14px", maxWidth: 220 }}>
+                  <td style={{ padding: "10px 14px", maxWidth: 260 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>{ins.busqueda || ins.descripcion}</div>
-                    {ins.busqueda && ins.descripcion !== ins.busqueda && (
-                      <div style={{ fontSize: 11, color: C.textMuted }}>{ins.descripcion}</div>
-                    )}
+                    <div style={{ fontSize: 11, color: C.textMuted }}>{ins.descripcion} {ins.tipo} {ins.material}</div>
                   </td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.tipo || "—"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.material || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12 }}>{ins.proveedor || "—"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.espesor || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.precio_tn_usd || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: C.accent }}>{ins.precio_pieza || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 11, color: C.textMuted }}>{ins.fecha_precio || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: ins.stock_un ? 700 : 400, color: ins.stock_un ? C.text : C.textMuted }}>{ins.stock_un || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.peso_stock_kg || "—"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec }}>{ins.stock_min_un || "—"}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <span style={{ background: estCfg.bg, color: estCfg.color, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
                       {estCfg.label}
