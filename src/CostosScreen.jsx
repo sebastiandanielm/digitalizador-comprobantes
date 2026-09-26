@@ -423,37 +423,67 @@ export default function CostosScreen({ onVolver }) {
             </table>
           </div>
 
-          {/* Detalle subcategorías */}
-          {costosPeriodo.length > 0 && (
-            <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
-              <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 15, color: C.navy }}>
-                Detalle por subcategoría
-              </div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                    {["Categoría", "Subcategoría", "Monto", "Observaciones"].map(h => (
-                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {costosPeriodo.map((c, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}
-                      onMouseEnter={e => e.currentTarget.style.background = "#f5f7ff"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                      <td style={{ padding: "10px 16px", fontSize: 13 }}>
-                        <span style={{ background: C.accentBg, color: C.accent, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{c.categoria}</span>
-                      </td>
-                      <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600 }}>{c.subcategoria}</td>
-                      <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 700 }}>{fmtPeso(c.monto)}</td>
-                      <td style={{ padding: "10px 16px", fontSize: 12, color: C.textSec }}>{c.observaciones || "—"}</td>
+          {/* Detalle subcategorías — consolidado por proveedor/concepto */}
+          {costosPeriodo.length > 0 && (() => {
+            // Consolidar: sumar montos por categoria+subcategoria (elimina duplicados por proceso)
+            const consolidado = {};
+            costosPeriodo.forEach(c => {
+              const key = `${c.categoria}||${c.subcategoria}`;
+              if (!consolidado[key]) {
+                consolidado[key] = { categoria: c.categoria, subcategoria: c.subcategoria, monto: 0 };
+              }
+              consolidado[key].monto += c.monto;
+            });
+            const filas = Object.values(consolidado).sort((a, b) => b.monto - a.monto);
+            const totalConsolidado = filas.reduce((s, f) => s + f.monto, 0);
+
+            return (
+              <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Detalle por proveedor / concepto — {periodo}</div>
+                    <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Monto total gastado en cada concepto este período</div>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.accent }}>{filas.length} conceptos</div>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
+                      {["Categoría", "Proveedor / Concepto", "Monto total", "% del período"].map(h => (
+                        <th key={h} style={{ padding: "10px 16px", textAlign: "left", color: C.textMuted, fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {filas.map((f, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#f5f7ff"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "10px 16px", fontSize: 13 }}>
+                          <span style={{ background: C.accentBg, color: C.accent, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{f.categoria}</span>
+                        </td>
+                        <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600 }}>{f.subcategoria}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 700, color: C.navy }}>{fmtPeso(f.monto)}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 13, color: C.textSec }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ flex: 1, background: C.border, borderRadius: 4, height: 6, maxWidth: 80 }}>
+                              <div style={{ width: `${Math.min(100, (f.monto/totalConsolidado)*100)}%`, background: C.accent, borderRadius: 4, height: 6 }} />
+                            </div>
+                            <span>{totalConsolidado > 0 ? `${((f.monto/totalConsolidado)*100).toFixed(1)}%` : "—"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: C.navy }}>
+                      <td colSpan={2} style={{ padding: "12px 16px", fontWeight: 800, fontSize: 14, color: "#fff" }}>TOTAL</td>
+                      <td style={{ padding: "12px 16px", fontWeight: 800, fontSize: 14, color: C.accent }}>{fmtPeso(totalConsolidado)}</td>
+                      <td style={{ padding: "12px 16px", color: "#7a9cc8", fontSize: 13 }}>100%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
 
           {/* Botón procesar período */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
