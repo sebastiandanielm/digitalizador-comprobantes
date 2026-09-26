@@ -188,7 +188,10 @@ export default function CostosScreen({ onVolver }) {
         return;
       }
 
-      setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Leyendo contactos...`);
+      setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Limpiando período anterior...`);
+
+      // 1b. Borrar filas existentes del período en Costos
+      await apiSheets("delete_costos_periodo", { periodo });
 
       // 2. Leer contactos para obtener categoria y distribucion
       const ctData = await apiSheets("get_contactos");
@@ -210,11 +213,8 @@ export default function CostosScreen({ onVolver }) {
         }
       });
 
-      // 3. Leer costos ya existentes en el período para evitar duplicados
-      const costosExistentes = costos.filter(c => c.periodo === periodo);
-      const subcatsExistentes = new Set(
-        costosExistentes.map(c => `${c.subcategoria}|${c.proceso}`)
-      );
+      // 3. Set vacío — ya borramos el período, no hay duplicados posibles
+      const subcatsExistentes = new Set();
 
       setMsgProceso("Clasificando y guardando en Costos...");
 
