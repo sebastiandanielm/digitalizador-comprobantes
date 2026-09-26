@@ -644,6 +644,50 @@ export default async function handler(req, res) {
       return res.status(200).json({ deleted: indicesToDelete.length, ...(await r2.json()) });
     }
 
+    if (action === 'delete_costos_todos') {
+      // Obtener sheetId de la hoja Costos
+      const metaR = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const meta = await metaR.json();
+      const costoSheet = meta.sheets?.find(s => s.properties.title === 'Costos');
+      if (!costoSheet) return res.status(404).json({ error: 'Hoja Costos no encontrada' });
+      const costoSheetId = costoSheet.properties.sheetId;
+
+      // Leer filas actuales
+      const r0 = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const costoData = await r0.json();
+      const totalRows = (costoData.values || []).length;
+
+      if (totalRows <= 1) return res.status(200).json({ deleted: 0 });
+
+      // Borrar todas las filas excepto el encabezado (fila 1)
+      const r2 = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requests: [{
+              deleteDimension: {
+                range: {
+                  sheetId: costoSheetId,
+                  dimension: 'ROWS',
+                  startIndex: 1,
+                  endIndex: totalRows,
+                }
+              }
+            }]
+          }),
+        }
+      );
+      return res.status(200).json({ deleted: totalRows - 1, ...(await r2.json()) });
+    }
+
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
