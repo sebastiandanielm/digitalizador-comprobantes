@@ -150,16 +150,32 @@ export default function CostosScreen({ onVolver }) {
     }
   });
 
-  // Total general del período
-  const totalMes = Object.values(totalPorCategoria).reduce((s, v) => s + v, 0)
-    + Object.values(amortPorProceso).reduce((s, v) => s + v, 0);
+  // Total general del período — usando costos del primer proceso como referencia
+  // (los costos compartidos se asignan a cada proceso por separado)
+  // Para el total real usamos los comprobantes únicos del período
+  const comprobantesUnicos = {};
+  costosPeriodo.forEach(c => {
+    const key = `${c.subcategoria}`;
+    if (!comprobantesUnicos[key]) comprobantesUnicos[key] = c.monto;
+  });
+  const totalMes = Object.values(comprobantesUnicos).reduce((s, v) => s + v, 0)
+    + Object.values(amortPorProceso).reduce((s, v) => s + v, 0) / PROCESOS.length;
 
-  // Costo hora por proceso (distribución igualitaria)
+  // Costo hora por proceso — suma de costos asignados a ese proceso ÷ 168hs
+  const costoTotalPorProceso = {};
+  PROCESOS.forEach(p => { costoTotalPorProceso[p] = 0; });
+  costosPeriodo.forEach(c => {
+    if (costoTotalPorProceso[c.proceso] !== undefined) {
+      costoTotalPorProceso[c.proceso] += c.monto;
+    }
+  });
+  // Sumar amortizaciones propias de cada proceso
+  PROCESOS.forEach(p => {
+    costoTotalPorProceso[p] += (amortPorProceso[p] || 0);
+  });
   const costoPorProceso = {};
   PROCESOS.forEach(p => {
-    const costoCompartido = totalMes / PROCESOS.length;
-    const amortPropio = amortPorProceso[p] || 0;
-    costoPorProceso[p] = (costoCompartido + amortPropio) / HORAS_MES;
+    costoPorProceso[p] = costoTotalPorProceso[p] / HORAS_MES;
   });
 
   // Guardar costo manual
@@ -262,7 +278,8 @@ export default function CostosScreen({ onVolver }) {
 
         if (procesos.length === 0) { sinClasif++; continue; }
 
-        const montoPorProceso = total / procesos.length;
+        // Cada proceso recibe el monto completo — costos independientes por proceso
+        const montoPorProceso = total;
         const subcatKey = (contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor)
           + (contactoMatch.subtipo ? " - " + contactoMatch.subtipo : "");
 
