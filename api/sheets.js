@@ -70,6 +70,7 @@ export default async function handler(req, res) {
         d.contacto_clasificado != null ? String(d.contacto_clasificado) : '',
         d.contacto_tipo||'',
         d.contacto_categoria||'',
+        d.contacto_subtipo||'',
       ];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
