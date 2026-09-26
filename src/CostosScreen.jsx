@@ -190,24 +190,19 @@ export default function CostosScreen({ onVolver }) {
       const compData = await apiSheets("get");
       const compRows = (compData.values || []).slice(1);
       
-      // Filtrar por período — col S (índice 18)
-      const compPeriodo = compRows.filter(r => {
-        const periodoComp = r[18] || "";
-        // Comparar período MM/YYYY
-        return periodoComp.includes(periodo.split("/")[0]) && 
-               periodoComp.includes(periodo.split("/")[1]);
-      });
+      // Tomar todos los comprobantes — cada uno usa su propio período (col S)
+      const compPeriodo = compRows.filter(r => (r[16]||"") !== ""); // solo los que tienen total
 
       if (compPeriodo.length === 0) {
-        setMsgProceso("⚠ No hay comprobantes para el período " + periodo);
+        setMsgProceso("⚠ No hay comprobantes para procesar");
         setProcesando(false);
         return;
       }
 
-      setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Limpiando período anterior...`);
+      setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Limpiando datos anteriores...`);
 
-      // 1b. Borrar filas existentes del período en Costos
-      await apiSheets("delete_costos_periodo", { periodo });
+      // 1b. Borrar TODOS los datos de Costos y reprocesar desde cero
+      await apiSheets("delete_costos_todos");
 
       // 2. Leer contactos para obtener categoria y distribucion
       const ctData = await apiSheets("get_contactos");
@@ -287,8 +282,10 @@ export default function CostosScreen({ onVolver }) {
           const key = `${subcatKey}|${proceso}`;
           if (subcatsExistentes.has(key)) { saltados++; continue; }
 
+          // Usar el período real del comprobante, no el del selector
+          const periodoReal = (row[18]||periodo).trim();
           const filaData = [
-            periodo,
+            periodoReal,
             proceso,
             contactoMatch.categoria_costo,
             subcatKey,
