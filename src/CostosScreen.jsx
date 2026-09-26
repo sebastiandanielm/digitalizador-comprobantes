@@ -228,6 +228,7 @@ export default function CostosScreen({ onVolver }) {
         const total      = parseFloat(totalStr) || 0;
         const emisor     = row[6]||"";
         const estado     = row[21]||"";
+        const subtipo    = row[49]||""; // Columna AX — subtipo del comprobante
 
         if (estado === "error") continue;
         if (total <= 0) continue;
@@ -235,38 +236,53 @@ export default function CostosScreen({ onVolver }) {
         const contactosArr = contactosMap[cuitEmisor];
         if (!contactosArr || contactosArr.length === 0) { sinClasif++; continue; }
 
-        for (const contacto of contactosArr) {
-          if (!contacto.categoria_costo || !contacto.distribucion_proceso) continue;
+        // Buscar el contacto que matchea por subtipo
+        // Si el comprobante tiene subtipo, buscar ese contacto específico
+        // Si no tiene subtipo, usar el primer contacto sin subtipo
+        let contactoMatch;
+        if (subtipo) {
+          contactoMatch = contactosArr.find(c =>
+            c.subtipo.toLowerCase() === subtipo.toLowerCase()
+          );
+        }
+        // Si no matchea por subtipo o no hay subtipo, usar el que no tiene subtipo
+        if (!contactoMatch) {
+          contactoMatch = contactosArr.find(c => !c.subtipo) || contactosArr[0];
+        }
 
-          const procesos = contacto.distribucion_proceso
-            .split(",")
-            .map(p => p.trim())
-            .filter(Boolean);
+        if (!contactoMatch || !contactoMatch.categoria_costo || !contactoMatch.distribucion_proceso) {
+          sinClasif++;
+          continue;
+        }
 
-          if (procesos.length === 0) continue;
+        const procesos = contactoMatch.distribucion_proceso
+          .split(",")
+          .map(p => p.trim())
+          .filter(Boolean);
 
-          const montoPorProceso = total / procesos.length / contactosArr.length;
-          const subcatKey = (contacto.razon_social || contacto.nombre_fantasia || emisor)
-            + (contacto.subtipo ? " - " + contacto.subtipo : "");
+        if (procesos.length === 0) { sinClasif++; continue; }
 
-          for (const proceso of procesos) {
-            const key = `${subcatKey}|${proceso}`;
-            if (subcatsExistentes.has(key)) { saltados++; continue; }
+        const montoPorProceso = total / procesos.length;
+        const subcatKey = (contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor)
+          + (contactoMatch.subtipo ? " - " + contactoMatch.subtipo : "");
 
-            const filaData = [
-              periodo,
-              proceso,
-              contacto.categoria_costo,
-              subcatKey,
-              montoPorProceso,
-              "",
-              emisor,
-            ];
+        for (const proceso of procesos) {
+          const key = `${subcatKey}|${proceso}`;
+          if (subcatsExistentes.has(key)) { saltados++; continue; }
 
-            await apiSheets("append_costo", filaData);
-            subcatsExistentes.add(key);
-            agregados++;
-          }
+          const filaData = [
+            periodo,
+            proceso,
+            contactoMatch.categoria_costo,
+            subcatKey,
+            montoPorProceso,
+            "",
+            emisor,
+          ];
+
+          await apiSheets("append_costo", filaData);
+          subcatsExistentes.add(key);
+          agregados++;
         }
       }
 
