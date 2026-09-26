@@ -490,6 +490,7 @@ async function cargarDeSheets() {
         contacto_clasificado: row[46] === "true" ? true : row[46] === "false" ? false : null,
         contacto_tipo: row[47] || null,
         contacto_categoria: row[48] || null,
+        contacto_subtipo: row[49] || null,
       },
     }));
   } catch (e) { return []; }
@@ -609,7 +610,7 @@ export default function App() {
 
         if (contactoEmisor) {
           datos.contacto_tipo        = contactoEmisor.tipo;
-          datos.contacto_subtipo     = contactoEmisor.subtipo;
+          datos.contacto_subtipo     = contactoEmisor.subtipo || "";
           datos.contacto_categoria   = contactoEmisor.categoria_costo;
           datos.contacto_clasificado = true;
           if (contactoEmisor.razon_social && !datos.emisor_razon_social) {
