@@ -197,12 +197,16 @@ export default function CostosScreen({ onVolver }) {
       ctRows.forEach(r => {
         const cuit = (r[1]||"").replace(/[-\s]/g,"");
         if (cuit) {
-          contactosMap[cuit] = {
-            razon_social:        r[2]||"",
-            nombre_fantasia:     r[3]||"",
-            categoria_costo:     r[6]||"",
+          // Puede haber varios contactos con mismo CUIT (distintos subtipos)
+          // Los guardamos como array para manejar municipios con varios impuestos
+          if (!contactosMap[cuit]) contactosMap[cuit] = [];
+          contactosMap[cuit].push({
+            razon_social:         r[2]||"",
+            nombre_fantasia:      r[3]||"",
+            subtipo:              r[5]||"",
+            categoria_costo:      r[6]||"",
             distribucion_proceso: r[19]||"", // columna T
-          };
+          });
         }
       });
 
@@ -220,47 +224,49 @@ export default function CostosScreen({ onVolver }) {
 
       for (const row of compPeriodo) {
         const cuitEmisor = (row[7]||"").replace(/[-\s]/g,"");
-        const totalStr   = (row[16]||"0").replace(/\$/g,"").replace(/\s/g,"").replace(/\./g,"").replace(",",".");
+        const totalStr   = (row[16]||"0").replace(/[$\s.]/g,"").replace(",",".");
         const total      = parseFloat(totalStr) || 0;
         const emisor     = row[6]||"";
         const estado     = row[21]||"";
 
-        if (estado === "error") continue; // Solo ignora errores, procesa revisar y procesado
+        if (estado === "error") continue;
         if (total <= 0) continue;
 
-        const contacto = contactosMap[cuitEmisor];
-        if (!contacto || !contacto.categoria_costo || !contacto.distribucion_proceso) {
-          sinClasif++;
-          continue;
-        }
+        const contactosArr = contactosMap[cuitEmisor];
+        if (!contactosArr || contactosArr.length === 0) { sinClasif++; continue; }
 
-        const procesos = contacto.distribucion_proceso
-          .split(",")
-          .map(p => p.trim())
-          .filter(Boolean);
+        for (const contacto of contactosArr) {
+          if (!contacto.categoria_costo || !contacto.distribucion_proceso) continue;
 
-        if (procesos.length === 0) { sinClasif++; continue; }
+          const procesos = contacto.distribucion_proceso
+            .split(",")
+            .map(p => p.trim())
+            .filter(Boolean);
 
-        const montoPorProceso = total / procesos.length;
-        const subcatKey = contacto.razon_social || contacto.nombre_fantasia || emisor;
+          if (procesos.length === 0) continue;
 
-        for (const proceso of procesos) {
-          const key = `${subcatKey}|${proceso}`;
-          if (subcatsExistentes.has(key)) { saltados++; continue; }
+          const montoPorProceso = total / procesos.length / contactosArr.length;
+          const subcatKey = (contacto.razon_social || contacto.nombre_fantasia || emisor)
+            + (contacto.subtipo ? " - " + contacto.subtipo : "");
 
-          const filaData = [
-            periodo,
-            proceso,
-            contacto.categoria_costo,
-            subcatKey,
-            montoPorProceso,
-            "", // costo_hora se calcula en el dashboard
-            emisor,
-          ];
+          for (const proceso of procesos) {
+            const key = `${subcatKey}|${proceso}`;
+            if (subcatsExistentes.has(key)) { saltados++; continue; }
 
-          await apiSheets("append_costo", filaData);
-          subcatsExistentes.add(key);
-          agregados++;
+            const filaData = [
+              periodo,
+              proceso,
+              contacto.categoria_costo,
+              subcatKey,
+              montoPorProceso,
+              "",
+              emisor,
+            ];
+
+            await apiSheets("append_costo", filaData);
+            subcatsExistentes.add(key);
+            agregados++;
+          }
         }
       }
 
