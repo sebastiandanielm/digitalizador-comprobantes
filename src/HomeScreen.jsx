@@ -25,7 +25,7 @@ const MODULOS = [
   { key: "contactos", label: "Contactos", icon: "👥", desc: "Administrá proveedores, clientes y organismos con sus datos fiscales.", disponible: true,
     keywords: ["contacto","proveedor","cliente","cuit","organismo","banco","cbu"] },
   // Próximos
-  { key: "costos", label: "Costos", icon: "📊", desc: "Analizá costos por categoría: impuestos, sueldos, servicios, materiales.", disponible: false,
+  { key: "costos", label: "Costos", icon: "📊", desc: "Analizá costos por categoría: impuestos, sueldos, servicios, materiales.", disponible: true,
     keywords: ["costo","gasto","analisis","categoria","material","sueldo","impuesto"] },
   { key: "cc_proveedores", label: "Cta. Cte. Proveedores", icon: "📋", desc: "Saldo y facturas pendientes por proveedor.", disponible: false,
     keywords: ["cuenta corriente","saldo proveedor","deuda","pendiente","proveedor"] },
