@@ -150,13 +150,20 @@ export default function CostosScreen({ onVolver }) {
     }
   });
 
-  // Total general del período — usando costos del primer proceso como referencia
-  // (los costos compartidos se asignan a cada proceso por separado)
-  // Para el total real usamos los comprobantes únicos del período
+  // Total real del período — suma de comprobantes únicos (sin multiplicar por procesos)
   const comprobantesUnicos = {};
+  const comprobantesCount = {};
   costosPeriodo.forEach(c => {
-    const key = `${c.subcategoria}`;
-    if (!comprobantesUnicos[key]) comprobantesUnicos[key] = c.monto;
+    const key = c.subcategoria;
+    if (!comprobantesUnicos[key]) { comprobantesUnicos[key] = 0; comprobantesCount[key] = 0; }
+    comprobantesUnicos[key] += c.monto;
+    comprobantesCount[key]++;
+  });
+  // Dividir por cantidad de procesos para obtener monto real
+  Object.keys(comprobantesUnicos).forEach(key => {
+    if (comprobantesCount[key] > 1) {
+      comprobantesUnicos[key] = comprobantesUnicos[key] / comprobantesCount[key];
+    }
   });
   const totalMes = Object.values(comprobantesUnicos).reduce((s, v) => s + v, 0)
     + Object.values(amortPorProceso).reduce((s, v) => s + v, 0) / PROCESOS.length;
@@ -461,14 +468,23 @@ export default function CostosScreen({ onVolver }) {
 
           {/* Detalle subcategorías — consolidado por proveedor/concepto */}
           {costosPeriodo.length > 0 && (() => {
-            // Consolidar: sumar montos por categoria+subcategoria (elimina duplicados por proceso)
+            // Consolidar: mostrar monto real del comprobante (dividir por procesos para deshacer la multiplicación)
             const consolidado = {};
+            const procesosCount = {};
             costosPeriodo.forEach(c => {
               const key = `${c.categoria}||${c.subcategoria}`;
               if (!consolidado[key]) {
                 consolidado[key] = { categoria: c.categoria, subcategoria: c.subcategoria, monto: 0 };
+                procesosCount[key] = 0;
               }
               consolidado[key].monto += c.monto;
+              procesosCount[key]++;
+            });
+            // Dividir por cantidad de procesos para obtener el monto real del comprobante
+            Object.keys(consolidado).forEach(key => {
+              if (procesosCount[key] > 1) {
+                consolidado[key].monto = consolidado[key].monto / procesosCount[key];
+              }
             });
             const filas = Object.values(consolidado).sort((a, b) => b.monto - a.monto);
             const totalConsolidado = filas.reduce((s, f) => s + f.monto, 0);
