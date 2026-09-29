@@ -278,12 +278,12 @@ export default function CostosScreen({ onVolver }) {
         const subcatKey = (contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor)
           + (contactoMatch.subtipo ? " - " + contactoMatch.subtipo : "");
 
+        // Período real del comprobante
+        const periodoReal = (row[18]||periodo).trim();
+
         for (const proceso of procesos) {
           const key = `${periodoReal}|${subcatKey}|${proceso}`;
           if (subcatsExistentes.has(key)) { saltados++; continue; }
-
-          // Usar el período real del comprobante, no el del selector
-          const periodoReal = (row[18]||periodo).trim();
           const filaData = [
             periodoReal,
             proceso,
