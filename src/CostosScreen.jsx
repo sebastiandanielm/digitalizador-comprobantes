@@ -132,13 +132,25 @@ export default function CostosScreen({ onVolver }) {
   // Calcular costos del período seleccionado
   const costosPeriodo = costos.filter(c => c.periodo === periodo);
 
-  // Total por categoría para el período
+  // Total por categoría — monto real (dividido por cantidad de procesos)
   const totalPorCategoria = {};
-  Object.keys(CATEGORIAS).forEach(cat => { totalPorCategoria[cat] = 0; });
+  const countPorCategoria = {};
+  Object.keys(CATEGORIAS).forEach(cat => { totalPorCategoria[cat] = 0; countPorCategoria[cat] = {}; });
   costosPeriodo.forEach(c => {
     if (totalPorCategoria[c.categoria] !== undefined) {
-      totalPorCategoria[c.categoria] += c.monto;
+      // Usar subcategoria como key para evitar multiplicar por procesos
+      if (!countPorCategoria[c.categoria][c.subcategoria]) {
+        countPorCategoria[c.categoria][c.subcategoria] = { monto: 0, count: 0 };
+      }
+      countPorCategoria[c.categoria][c.subcategoria].monto += c.monto;
+      countPorCategoria[c.categoria][c.subcategoria].count++;
     }
+  });
+  // Calcular total real por categoría
+  Object.keys(totalPorCategoria).forEach(cat => {
+    Object.values(countPorCategoria[cat]).forEach(({ monto, count }) => {
+      totalPorCategoria[cat] += count > 1 ? monto / count : monto;
+    });
   });
 
   // Amortización mensual total por proceso (desde hoja Amortizaciones)
@@ -241,17 +253,22 @@ export default function CostosScreen({ onVolver }) {
       let sinClasif = 0;
 
       for (const row of compPeriodo) {
-        const cuitEmisor = (row[7]||"").replace(/[-\s]/g,"");
-        const totalStr   = (row[16]||"0").replace(/[$\s.]/g,"").replace(",",".");
-        const total      = parseFloat(totalStr) || 0;
-        const emisor     = row[6]||"";
-        const estado     = row[21]||"";
-        const subtipo    = row[49]||""; // Columna AX — subtipo del comprobante
+        const cuitEmisor   = (row[7]||"").replace(/[-\s]/g,"");
+        const cuitReceptor = (row[9]||"").replace(/[-\s]/g,"");
+        const totalStr     = (row[16]||"0").replace(/[$\s.]/g,"").replace(",",".");
+        const total        = parseFloat(totalStr) || 0;
+        const emisor       = row[6]||"";
+        const estado       = row[21]||"";
+        const subtipo      = row[49]||""; // Columna AX — subtipo del comprobante
 
         if (estado === "error") continue;
         if (total <= 0) continue;
 
-        const contactosArr = contactosMap[cuitEmisor];
+        // Buscar primero por CUIT emisor, luego por CUIT receptor
+        let contactosArr = contactosMap[cuitEmisor];
+        if (!contactosArr || contactosArr.length === 0) {
+          contactosArr = contactosMap[cuitReceptor];
+        }
         if (!contactosArr || contactosArr.length === 0) { sinClasif++; continue; }
 
         // Buscar el contacto que matchea por subtipo
