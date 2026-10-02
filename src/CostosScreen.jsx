@@ -292,13 +292,19 @@ export default function CostosScreen({ onVolver }) {
         let contactoMatch = null;
 
         if (subtipoAX) {
+          // Buscar por subtipo exacto del comprobante
           contactoMatch = contactosArr.find(c =>
             c.subtipo.toLowerCase() === subtipoAX.toLowerCase()
           );
         }
 
         if (!contactoMatch) {
-          // Buscar el que tenga categoria Y distribucion completos
+          // Preferir el que tiene subtipo NO vacío + categoria + distribucion
+          contactoMatch = contactosArr.find(c => c.subtipo && c.categoria_costo && c.distribucion_proceso);
+        }
+
+        if (!contactoMatch) {
+          // Fallback: cualquiera con categoria + distribucion
           contactoMatch = contactosArr.find(c => c.categoria_costo && c.distribucion_proceso);
         }
 
@@ -317,9 +323,12 @@ export default function CostosScreen({ onVolver }) {
         const subcatKey   = subtipoContacto ? `${nombreBase} - ${subtipoContacto}` : nombreBase;
         const periodoReal = (row[18]||periodo).trim();
         const diasHabiles = contactoMatch.periodicidad_dias;
+        // Usar número de comprobante para distinguir dos facturas del mismo proveedor en el mismo período
+        const nroComp     = (row[2]||"").trim();
 
         for (const proceso of procesos) {
-          const key = `${periodoReal}|${subcatKey}|${proceso}`;
+          // Key incluye nroComp para permitir dos facturas del mismo proveedor en el mismo mes
+          const key = `${periodoReal}|${subcatKey}|${proceso}|${nroComp}`;
           if (subcatsExistentes.has(key)) { saltados++; continue; }
 
           const filaData = [
