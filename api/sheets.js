@@ -73,11 +73,72 @@ export default async function handler(req, res) {
         d.contacto_subtipo||'',
       ];
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
+
+    // ── Actualizar estado/datos de un comprobante ─────────────────────────────
+    if (action === 'update_comprobante') {
+      // data: objeto con los campos a actualizar
+      // rowIndex: índice 0-based del array de datos (sin encabezado)
+      // Solo actualizamos los campos que vienen en data
+      const sheetRow = rowIndex + 2; // +1 encabezado +1 base-1
+
+      // Si solo actualizamos estado (col V = columna 22, letra W)
+      if (data.estado !== undefined && Object.keys(data).length === 1) {
+        const r = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!V${sheetRow}?valueInputOption=RAW`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: [[data.estado]] }),
+          }
+        );
+        return res.status(200).json(await r.json());
+      }
+
+      // Si actualizamos periodo (col S = columna 19, letra S)
+      if (data.periodo !== undefined && Object.keys(data).length === 1) {
+        const r = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Comprobantes!S${sheetRow}?valueInputOption=RAW`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: [[data.periodo]] }),
+          }
+        );
+        return res.status(200).json(await r.json());
+      }
+
+      // Actualización múltiple de campos específicos via batchUpdate
+      const requests = [];
+      const colMap = {
+        estado: 'V',
+        periodo: 'S',
+        observaciones: 'W',
+        contacto_subtipo: 'AX',
+      };
+      for (const [field, col] of Object.entries(colMap)) {
+        if (data[field] !== undefined) {
+          requests.push({
+            range: `Comprobantes!${col}${sheetRow}`,
+            values: [[data[field]]],
+          });
+        }
+      }
+      if (requests.length === 0) return res.status(200).json({ ok: true });
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'RAW', data: requests }),
         }
       );
       return res.status(200).json(await r.json());
@@ -156,7 +217,7 @@ export default async function handler(req, res) {
         c.contacto||'', c.telefono||'', c.mail||'',
         c.direccion||'', c.localidad||'', c.provincia||'', c.cp||'',
         c.condicion_iva||'', c.cbu||'', c.banco||'', c.alias||'',
-        c.preferencia_cheque||'', c.notas||''
+        c.distribucion_proceso||'', c.periodicidad_dias||'', c.notas||''
       ];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
@@ -177,11 +238,11 @@ export default async function handler(req, res) {
         c.contacto||'', c.telefono||'', c.mail||'',
         c.direccion||'', c.localidad||'', c.provincia||'', c.cp||'',
         c.condicion_iva||'', c.cbu||'', c.banco||'', c.alias||'',
-        c.preferencia_cheque||'', c.notas||''
+        c.distribucion_proceso||'', c.periodicidad_dias||'', c.notas||''
       ];
       const sheetRow = rowIndex + 2;
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A${sheetRow}:U${sheetRow}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contactos!A${sheetRow}:V${sheetRow}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -234,7 +295,10 @@ export default async function handler(req, res) {
         if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match) });
       }
       if (nombre) {
-        const match = dataRows.find(row => (row[2]||'').toLowerCase().includes(nombre.toLowerCase()) || (row[3]||'').toLowerCase().includes(nombre.toLowerCase()));
+        const match = dataRows.find(row =>
+          (row[2]||'').toLowerCase().includes(nombre.toLowerCase()) ||
+          (row[3]||'').toLowerCase().includes(nombre.toLowerCase())
+        );
         if (match) return res.status(200).json({ encontrado: true, contacto: rowToContacto(match), matchPorNombre: true });
       }
       return res.status(200).json({ encontrado: false });
@@ -354,56 +418,18 @@ export default async function handler(req, res) {
 
     if (action === 'append_orden') {
       const o = data;
-
-      // Hasta 5 facturas (7 columnas cada una)
       const docCols = [];
       for (let i = 0; i < 5; i++) {
         const f = (o.facturas || [])[i] || {};
-        docCols.push(
-          f.numero   || '',
-          f.fecha    || '',
-          f.cantidad || '',
-          f.detalle  || '',
-          f.precio   || '',
-          f.tc       || '1',
-          f.total    || ''
-        );
+        docCols.push(f.numero||'', f.fecha||'', f.cantidad||'', f.detalle||'', f.precio||'', f.tc||'1', f.total||'');
       }
-
-      // Impuestos (6 columnas)
-      const impCols = [
-        o.subtotal       || '',
-        o.iva            || '',
-        o.percepcion_iva || '',
-        o.iibb_caba      || '',
-        o.iibb_bsas      || '',
-        o.total          || '',
-      ];
-
-      // Hasta 17 formas de pago (5 columnas cada una)
+      const impCols = [o.subtotal||'', o.iva||'', o.percepcion_iva||'', o.iibb_caba||'', o.iibb_bsas||'', o.total||''];
       const pagoCols = [];
       for (let i = 0; i < 17; i++) {
         const p = (o.formas_pago || [])[i] || {};
-        pagoCols.push(
-          p.tipo       || '',
-          p.nro_cheque || '',
-          p.banco      || '',
-          p.fecha      || '',
-          p.monto      || ''
-        );
+        pagoCols.push(p.tipo||'', p.nro_cheque||'', p.banco||'', p.fecha||'', p.monto||'');
       }
-
-      const row = [
-        o.nro_orden,
-        o.fecha,
-        o.proveedor,
-        o.cuit,
-        o.datos_bancarios || '',
-        ...docCols,
-        ...impCols,
-        ...pagoCols,
-      ];
-
+      const row = [o.nro_orden, o.fecha, o.proveedor, o.cuit, o.datos_bancarios||'', ...docCols, ...impCols, ...pagoCols];
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Ordenes_Pago!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
         {
@@ -425,12 +451,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ formas: valores });
     }
 
-    // ── Update Orden de Pago ──────────────────────────────────────────────────
-
     if (action === 'update_orden') {
       const { row } = data;
-      // _sheetRowIndex es el índice en el array (0-based desde fila 3 del sheet)
-      // Las 2 primeras filas son encabezados, entonces sheetRow = rowIndex + 1 (base 1) + 2 encabezados
       const sheetRow = rowIndex + 3;
       const colFin = String.fromCharCode(65 + row.length - 1);
       const r = await fetch(
@@ -444,7 +466,7 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
-    // ── Buscador Config (columnas D y E de Configuracion) ────────────────────
+    // ── Buscador Config ───────────────────────────────────────────────────────
 
     if (action === 'get_buscador_config') {
       const r = await fetch(
@@ -454,56 +476,21 @@ export default async function handler(req, res) {
       const data2 = await r.json();
       const rows = (data2.values || []).slice(1);
       const config = rows
-        .filter(r => r[3]) // tiene función en col D
-        .map(r => ({
-          key: r[3] || '',
-          keywords: (r[4] || '').split(',').map(k => k.trim()).filter(Boolean),
-        }));
+        .filter(r => r[3])
+        .map(r => ({ key: r[3]||'', keywords: (r[4]||'').split(',').map(k => k.trim()).filter(Boolean) }));
       return res.status(200).json({ config });
     }
 
     if (action === 'save_buscador_config') {
-      // Leer primero para mantener cols A, B, C intactas
       const r0 = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!A1:C50`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const existing = await r0.json();
       const rows = existing.values || [];
-      // Armar nuevas filas con D y E según config enviada
-      const configMap = {};
-      (data.config || []).forEach(c => { configMap[c.key] = c.keywords.join(', '); });
-      const nuevasFilas = rows.map((row, i) => {
-        if (i === 0) return [...row, 'Funcion', 'Palabras clave'];
-        // Buscar si esta fila tiene una funcion configurada
-        const key = row[0] || '';
-        // Las filas de config de buscador van por key de módulo
-        return [...row, '', ''];
-      });
-      // Actualizar solo filas de buscador config (filas extra al final si no existen)
-      // Guardar config en nuevas filas
-      const configRows = (data.config || []).map(c => ['', '', '', c.key, c.keywords.join(', ')]);
-      // Buscar dónde están en el sheet actual o agregar
-      const r2 = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!D1:E50`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const existing2 = await r2.json();
-      const deRows = existing2.values || [];
-      // Construir valores para D:E
-      const header = ['Funcion', 'Palabras clave'];
-      const deValues = [header];
-      const configMap2 = {};
-      (data.config || []).forEach(c => { configMap2[c.key] = c.keywords.join(', '); });
-      // Filas de tipos (A:C) — poner vacío en D:E si no tienen config
-      for (let i = 1; i < rows.length; i++) {
-        deValues.push(['', '']);
-      }
-      // Agregar filas de config del buscador
-      (data.config || []).forEach(c => {
-        deValues.push([c.key, c.keywords.join(', ')]);
-      });
-      const startRow = 1;
+      const deValues = [['Funcion', 'Palabras clave']];
+      for (let i = 1; i < rows.length; i++) deValues.push(['', '']);
+      (data.config || []).forEach(c => deValues.push([c.key, c.keywords.join(', ')]));
       const r3 = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!D1:E${deValues.length}?valueInputOption=RAW`,
         {
@@ -526,28 +513,26 @@ export default async function handler(req, res) {
     }
 
     if (action === 'append_insumo') {
-      const row = data; // array directo
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Insumos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [row] }),
+          body: JSON.stringify({ values: [data] }),
         }
       );
       return res.status(200).json(await r.json());
     }
 
     if (action === 'update_insumo') {
-      const row = data; // array directo
-      const sheetRow = rowIndex + 2; // +1 encabezado +1 base 1
-      const colFin = String.fromCharCode(65 + row.length - 1);
+      const sheetRow = rowIndex + 2;
+      const colFin = String.fromCharCode(65 + data.length - 1);
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Insumos!A${sheetRow}:${colFin}${sheetRow}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [row] }),
+          body: JSON.stringify({ values: [data] }),
         }
       );
       return res.status(200).json(await r.json());
@@ -564,7 +549,17 @@ export default async function handler(req, res) {
     }
 
     if (action === 'append_costo') {
-      const row = data; // array directo
+      // Convertir montos a número puro antes de guardar para evitar NaN
+      const row = data.map((val, idx) => {
+        // índice 4 = monto, índice 5 = costo_hora, índice 7 = dias_habiles
+        if (idx === 4 || idx === 5 || idx === 7) {
+          if (val === '' || val == null) return '';
+          const num = typeof val === 'number' ? val :
+            parseFloat(String(val).replace(/\$/g,'').replace(/\./g,'').replace(',','.').trim());
+          return isNaN(num) ? '' : num;
+        }
+        return val;
+      });
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
         {
@@ -588,103 +583,50 @@ export default async function handler(req, res) {
 
     if (action === 'delete_costos_periodo') {
       const periodoABorrar = data.periodo;
-      // Leer todas las filas de Costos
       const r0 = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const costoData = await r0.json();
       const costoRows = costoData.values || [];
-
-      // Encontrar índices de filas que pertenecen al período (col A = índice 0)
-      // Las filas del sheet son base 1, fila 1 es encabezado
       const indicesToDelete = [];
       for (let i = 1; i < costoRows.length; i++) {
-        if ((costoRows[i][0]||"").trim() === periodoABorrar.trim()) {
-          indicesToDelete.push(i + 1); // +1 porque sheets es base 1
-        }
+        if ((costoRows[i][0]||'').trim() === periodoABorrar.trim()) indicesToDelete.push(i + 1);
       }
-
-      if (indicesToDelete.length === 0) {
-        return res.status(200).json({ deleted: 0 });
-      }
-
-      // Obtener sheetId de la hoja Costos
-      const metaR = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      if (indicesToDelete.length === 0) return res.status(200).json({ deleted: 0 });
+      const metaR = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, { headers: { Authorization: `Bearer ${token}` } });
       const meta = await metaR.json();
       const costoSheet = meta.sheets?.find(s => s.properties.title === 'Costos');
       if (!costoSheet) return res.status(404).json({ error: 'Hoja Costos no encontrada' });
       const costoSheetId = costoSheet.properties.sheetId;
-
-      // Borrar de abajo hacia arriba para no desalinear índices
-      const requests = indicesToDelete
-        .sort((a, b) => b - a)
-        .map(rowNum => ({
-          deleteDimension: {
-            range: {
-              sheetId: costoSheetId,
-              dimension: 'ROWS',
-              startIndex: rowNum - 1,
-              endIndex: rowNum,
-            }
-          }
-        }));
-
-      const r2 = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests }),
-        }
-      );
+      const requests = indicesToDelete.sort((a,b)=>b-a).map(rowNum => ({
+        deleteDimension: { range: { sheetId: costoSheetId, dimension: 'ROWS', startIndex: rowNum-1, endIndex: rowNum } }
+      }));
+      const r2 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests }),
+      });
       return res.status(200).json({ deleted: indicesToDelete.length, ...(await r2.json()) });
     }
 
     if (action === 'delete_costos_todos') {
-      // Obtener sheetId de la hoja Costos
-      const metaR = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const metaR = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, { headers: { Authorization: `Bearer ${token}` } });
       const meta = await metaR.json();
       const costoSheet = meta.sheets?.find(s => s.properties.title === 'Costos');
       if (!costoSheet) return res.status(404).json({ error: 'Hoja Costos no encontrada' });
       const costoSheetId = costoSheet.properties.sheetId;
-
-      // Leer filas actuales
-      const r0 = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const r0 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Costos`, { headers: { Authorization: `Bearer ${token}` } });
       const costoData = await r0.json();
       const totalRows = (costoData.values || []).length;
-
       if (totalRows <= 1) return res.status(200).json({ deleted: 0 });
-
-      // Borrar todas las filas excepto el encabezado (fila 1)
-      const r2 = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requests: [{
-              deleteDimension: {
-                range: {
-                  sheetId: costoSheetId,
-                  dimension: 'ROWS',
-                  startIndex: 1,
-                  endIndex: totalRows,
-                }
-              }
-            }]
-          }),
-        }
-      );
+      const r2 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: [{ deleteDimension: { range: { sheetId: costoSheetId, dimension: 'ROWS', startIndex: 1, endIndex: totalRows } } }]
+        }),
+      });
       return res.status(200).json({ deleted: totalRows - 1, ...(await r2.json()) });
     }
 
@@ -697,13 +639,13 @@ export default async function handler(req, res) {
 function rowToContacto(row) {
   return {
     id: row[0]||'', cuit: row[1]||'', razon_social: row[2]||'',
-    nombre_fantasia: row[3]||'',
-    tipo: row[4]||'', subtipo: row[5]||'', categoria_costo: row[6]||'',
-    condicion_pago: row[7]||'', contacto: row[8]||'', telefono: row[9]||'',
-    mail: row[10]||'', direccion: row[11]||'', localidad: row[12]||'',
-    provincia: row[13]||'', cp: row[14]||'', condicion_iva: row[15]||'',
-    cbu: row[16]||'', banco: row[17]||'', alias: row[18]||'',
-    preferencia_cheque: row[19]||'', notas: row[20]||''
+    nombre_fantasia: row[3]||'', tipo: row[4]||'', subtipo: row[5]||'',
+    categoria_costo: row[6]||'', condicion_pago: row[7]||'',
+    contacto: row[8]||'', telefono: row[9]||'', mail: row[10]||'',
+    direccion: row[11]||'', localidad: row[12]||'', provincia: row[13]||'',
+    cp: row[14]||'', condicion_iva: row[15]||'', cbu: row[16]||'',
+    banco: row[17]||'', alias: row[18]||'',
+    distribucion_proceso: row[19]||'', periodicidad_dias: row[20]||'', notas: row[21]||''
   };
 }
 
