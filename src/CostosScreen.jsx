@@ -270,7 +270,7 @@ export default function CostosScreen({ onVolver }) {
       });
 
       const subcatsExistentes = new Set();
-      setMsgProceso("Clasificando y guardando en Costos...");
+      setMsgProceso(`Clasificando: ${compPeriodo.length} comprobantes · ${Object.keys(contactosMap).length} CUITs en contactos...`);
 
       let agregados = 0;
       let saltados  = 0;
