@@ -15,28 +15,39 @@ const C = {
 
 const PROCESOS = ["Laser", "Soldado", "Conformado", "Grabado", "Producto propio", "Personales"];
 
-const CATEGORIAS = {
-  "Gastos producción": [
-    "Aguas Argentinas", "Edenor", "Gas Natural", "ABL", "Seguridad e Higiene",
-    "Ingresos Brutos", "Inmobiliario", "Autónomos", "Patente Strada",
-    "Insumos anual", "Seguros", "Varios"
-  ],
-  "Gastos administrativos": [
-    "Teléfono fijo", "Internet y celulares", "Hosting", "IVA Intereses",
-    "Contador", "Programa contable", "Gastos extraordinarios",
-    "Gastos bancarios", "Transportes", "Publicidad"
-  ],
-  "Sueldos": [
-    "Sueldos", "Cargas sociales", "Seguro de vida y sepelio", "Servicios tercerizados"
-  ],
-  "Amortizaciones": ["Por máquina"],
-  "Insumos oficina": ["Papelería", "Consumibles administrativos"],
-  "Insumos industriales": ["Mantenimiento", "Eléctricos", "Seguridad", "Ferretería"],
+// Categorías normalizadas a minúsculas para matching robusto
+const CATEGORIAS_DISPLAY = {
+  "gastos producción":      "Gastos producción",
+  "gastos administrativos": "Gastos administrativos",
+  "sueldos":                "Sueldos",
+  "amortizaciones":         "Amortizaciones",
+  "insumos oficina":        "Insumos oficina",
+  "insumos idustriales":    "Insumos industriales",
+  "insumos industriales":   "Insumos industriales",
+  "impuesto":               "Gastos producción",
+  "ferreteria":             "Insumos industriales",
+  "chapa":                  "Insumos industriales",
+  "vehiculos":              "Gastos producción",
 };
 
-const HORAS_DIA  = 9;
-const DIAS_MES   = 21;
-const HORAS_MES  = DIAS_MES * HORAS_DIA; // 189 hs
+// Orden de display
+const CATEGORIAS_ORDEN = [
+  "Gastos producción",
+  "Gastos administrativos",
+  "Sueldos",
+  "Insumos oficina",
+  "Insumos industriales",
+  "Amortizaciones",
+];
+
+const normalizarCategoria = (cat) => {
+  if (!cat) return "";
+  return CATEGORIAS_DISPLAY[(cat || "").toLowerCase().trim()] || cat;
+};
+
+const HORAS_DIA = 9;
+const DIAS_MES  = 21;
+const HORAS_MES = DIAS_MES * HORAS_DIA; // 189 hs
 
 const fmtPeso = (n) => {
   if (!n && n !== 0) return "—";
@@ -75,11 +86,8 @@ const getPeriodos = () => {
   return periodos;
 };
 
-// Calcular costo/hora según periodicidad en días hábiles
-// monto / diasHabiles / HORAS_DIA = costo por hora normalizado a 1 mes
-// Luego multiplicamos por DIAS_MES para obtener el monto mensual equivalente
 const costoHoraPorPeriodicidad = (monto, diasHabiles) => {
-  const dias = parsNum(diasHabiles) || DIAS_MES; // default 21 si no tiene
+  const dias = parsNum(diasHabiles) || DIAS_MES;
   return monto / dias / HORAS_DIA;
 };
 
@@ -96,7 +104,7 @@ export default function CostosScreen({ onVolver }) {
   const [formCosto, setFormCosto] = useState({
     periodo: getPeriodoActual(),
     categoria: "Gastos producción",
-    subcategoria: "Edenor",
+    subcategoria: "",
     monto: "",
     observaciones: "",
   });
@@ -111,15 +119,15 @@ export default function CostosScreen({ onVolver }) {
         apiSheets("get_amortizaciones"),
       ]);
       const costoRows = (costosData.values || []).slice(1);
-      setCostos(costoRows.map((r) => ({
-        periodo:        r[0] || "",
-        proceso:        r[1] || "",
-        categoria:      r[2] || "",
-        subcategoria:   r[3] || "",
-        monto:          parsNum(r[4]),
-        costo_hora:     parsNum(r[5]),
-        observaciones:  r[6] || "",
-        dias_habiles:   parsNum(r[7]) || DIAS_MES, // col H — periodicidad en días hábiles
+      setCostos(costoRows.map(r => ({
+        periodo:       r[0] || "",
+        proceso:       r[1] || "",
+        categoria:     normalizarCategoria(r[2] || ""),
+        subcategoria:  r[3] || "",
+        monto:         parsNum(r[4]),
+        costo_hora:    parsNum(r[5]),
+        observaciones: r[6] || "",
+        dias_habiles:  parsNum(r[7]) || DIAS_MES,
       })));
 
       const amortRows = (amortData.values || []).slice(1);
@@ -135,14 +143,14 @@ export default function CostosScreen({ onVolver }) {
 
   const costosPeriodo = costos.filter(c => c.periodo === periodo);
 
-  // ── Info sueldos: detectar directos/indirectos por subcategoría guardada
+  // ── Unidades de sueldos
   const calcularUnidadesSueldos = (cp) => {
     const directos   = new Set();
     const indirectos = new Set();
     cp.forEach(c => {
       if (c.categoria === "Sueldos") {
         const sub = (c.subcategoria || "").toLowerCase();
-        if (sub.includes("directo"))   directos.add(c.subcategoria);
+        if (sub.includes("directo") && !sub.includes("indirecto")) directos.add(c.subcategoria);
         else if (sub.includes("indirecto")) indirectos.add(c.subcategoria);
       }
     });
@@ -153,8 +161,8 @@ export default function CostosScreen({ onVolver }) {
     return { directos: cantDirectos, indirectos: indirectos.size, unidades, horas };
   };
 
-  const sueldosInfo    = calcularUnidadesSueldos(costosPeriodo);
-  const HORAS_SUELDOS  = sueldosInfo.horas;
+  const sueldosInfo   = calcularUnidadesSueldos(costosPeriodo);
+  const HORAS_SUELDOS = sueldosInfo.horas;
 
   // ── Amortizaciones por proceso
   const amortPorProceso = {};
@@ -165,75 +173,53 @@ export default function CostosScreen({ onVolver }) {
     }
   });
 
-  // ── Costo hora de sueldos (total sueldos del período ÷ HORAS_SUELDOS)
-  // Los sueldos son siempre periodicidad 21 días (mensual), no aplica col U
+  // ── Total sueldos del período (deduplicado por subcategoría)
   const totalSueldosPeriodo = (() => {
-    const unicos = {};
-    const counts = {};
+    const vistos = {};
     costosPeriodo.filter(c => c.categoria === "Sueldos").forEach(c => {
-      if (!unicos[c.subcategoria]) { unicos[c.subcategoria] = 0; counts[c.subcategoria] = 0; }
-      unicos[c.subcategoria] += c.monto;
-      counts[c.subcategoria]++;
+      if (!vistos[c.subcategoria]) vistos[c.subcategoria] = c.monto;
     });
-    return Object.keys(unicos).reduce((s, k) => {
-      return s + (counts[k] > 1 ? unicos[k] / counts[k] : unicos[k]);
-    }, 0);
+    return Object.values(vistos).reduce((s, v) => s + v, 0);
   })();
   const costoHoraSueldos = HORAS_SUELDOS > 0 ? totalSueldosPeriodo / HORAS_SUELDOS : 0;
 
-  // ── Costo hora por proceso considerando periodicidad
-  // Para cada registro: costo_hora = monto / dias_habiles / HORAS_DIA
-  // Sueldos se manejan aparte (siempre 21 días × unidades)
+  // ── Costo hora por proceso (resto de categorías)
   const costoHoraPorProceso = {};
   PROCESOS.forEach(p => { costoHoraPorProceso[p] = 0; });
 
   costosPeriodo.forEach(c => {
-    if (c.categoria === "Sueldos") return; // sueldos van aparte
+    if (c.categoria === "Sueldos") return;
     if (costoHoraPorProceso[c.proceso] !== undefined) {
-      // costo hora normalizado según periodicidad del contacto
       costoHoraPorProceso[c.proceso] += costoHoraPorPeriodicidad(c.monto, c.dias_habiles);
     }
   });
 
-  // Sumar amortizaciones (siempre en base mensual)
   PROCESOS.forEach(p => {
     costoHoraPorProceso[p] += (amortPorProceso[p] || 0) / HORAS_MES;
-  });
-
-  // Agregar costo hora sueldos igual a todos los procesos
-  PROCESOS.forEach(p => {
     costoHoraPorProceso[p] += costoHoraSueldos;
   });
 
-  // ── Total por categoría (monto real, sin duplicar por procesos)
+  // ── Total por categoría (equivalente mensual, deduplicado)
   const totalPorCategoria = {};
-  Object.keys(CATEGORIAS).forEach(cat => { totalPorCategoria[cat] = 0; });
+  CATEGORIAS_ORDEN.forEach(cat => { totalPorCategoria[cat] = 0; });
 
-  // Para categorías con periodicidad: convertir a equivalente mensual
-  // monto_mensual_equiv = costo_hora × HORAS_MES
   const subcatsVistas = {};
   costosPeriodo.forEach(c => {
-    if (totalPorCategoria[c.categoria] === undefined) return;
-    // Deduplicar por subcategoría (puede estar en varios procesos)
-    if (!subcatsVistas[c.subcategoria]) {
-      subcatsVistas[c.subcategoria] = true;
-      if (c.categoria === "Sueldos") {
-        totalPorCategoria[c.categoria] += c.monto;
-      } else {
-        // Convertir a equivalente mensual según periodicidad
-        const ch = costoHoraPorPeriodicidad(c.monto, c.dias_habiles);
-        totalPorCategoria[c.categoria] += ch * HORAS_MES;
-      }
+    if (subcatsVistas[c.subcategoria]) return;
+    subcatsVistas[c.subcategoria] = true;
+    if (!totalPorCategoria.hasOwnProperty(c.categoria)) {
+      totalPorCategoria[c.categoria] = 0;
+    }
+    if (c.categoria === "Sueldos") {
+      totalPorCategoria[c.categoria] += c.monto;
+    } else {
+      totalPorCategoria[c.categoria] += costoHoraPorPeriodicidad(c.monto, c.dias_habiles) * HORAS_MES;
     }
   });
 
   const totalAmort = Object.values(amortPorProceso).reduce((s, v) => s + v, 0);
   const totalMes   = Object.values(totalPorCategoria).reduce((s, v) => s + v, 0) + totalAmort;
-
-  // ── Costo hora promedio total
-  const costoHoraPromedio = HORAS_MES > 0
-    ? Object.values(costoHoraPorProceso).reduce((s, v) => s + v, 0) / PROCESOS.length
-    : 0;
+  const costoHoraPromedio = Object.values(costoHoraPorProceso).reduce((s, v) => s + v, 0) / PROCESOS.length;
 
   // ── Procesar comprobantes
   const procesarPeriodoACostos = async () => {
@@ -242,7 +228,11 @@ export default function CostosScreen({ onVolver }) {
     try {
       const compData = await apiSheets("get");
       const compRows = (compData.values || []).slice(1);
-      const compPeriodo = compRows.filter(r => (r[16]||"") !== "");
+      // Procesar todos los que tengan total > 0 (sin importar estado)
+      const compPeriodo = compRows.filter(r => {
+        const total = parsNum((r[16]||"0").replace(/[$\s.]/g,"").replace(",","."));
+        return total > 0;
+      });
 
       if (compPeriodo.length === 0) {
         setMsgProceso("⚠ No hay comprobantes para procesar");
@@ -259,17 +249,17 @@ export default function CostosScreen({ onVolver }) {
       const contactosMap = {};
       ctRows.forEach(r => {
         const cuit = (r[1]||"").replace(/[-\s]/g,"");
-        if (cuit) {
-          if (!contactosMap[cuit]) contactosMap[cuit] = [];
-          contactosMap[cuit].push({
-            razon_social:         r[2]||"",
-            nombre_fantasia:      r[3]||"",
-            subtipo:              r[5]||"",   // col F — Directo/Indirecto para sueldos
-            categoria_costo:      r[6]||"",   // col G
-            distribucion_proceso: r[19]||"",  // col T
-            periodicidad_dias:    parsNum(r[20]) || DIAS_MES, // col U — días hábiles
-          });
-        }
+        if (!cuit) return;
+        if (!contactosMap[cuit]) contactosMap[cuit] = [];
+        const cat = normalizarCategoria(r[6]||"");
+        contactosMap[cuit].push({
+          razon_social:         r[2]||"",
+          nombre_fantasia:      r[3]||"",
+          subtipo:              r[5]||"",
+          categoria_costo:      cat,
+          distribucion_proceso: r[19]||"",
+          periodicidad_dias:    parsNum(r[20]) || DIAS_MES,
+        });
       });
 
       const subcatsExistentes = new Set();
@@ -282,29 +272,34 @@ export default function CostosScreen({ onVolver }) {
       for (const row of compPeriodo) {
         const cuitEmisor   = (row[7]||"").replace(/[-\s]/g,"");
         const cuitReceptor = (row[9]||"").replace(/[-\s]/g,"");
-        const totalStr     = (row[16]||"0").replace(/[$\s.]/g,"").replace(",",".");
-        const total        = parseFloat(totalStr) || 0;
+        const total        = parsNum((row[16]||"0").replace(/[$\s.]/g,"").replace(",","."));
         const emisor       = row[6]||"";
-        const estado       = row[21]||"";
-        const subtipo      = row[49]||"";
+        const subtipoAX    = (row[49]||"").trim(); // col AX del comprobante
 
-        if (estado === "error") continue;
         if (total <= 0) continue;
 
+        // Buscar contactos por CUIT emisor, luego receptor
         let contactosArr = contactosMap[cuitEmisor];
         if (!contactosArr || contactosArr.length === 0) {
           contactosArr = contactosMap[cuitReceptor];
         }
         if (!contactosArr || contactosArr.length === 0) { sinClasif++; continue; }
 
-        let contactoMatch;
-        if (subtipo) {
+        // Matching robusto:
+        // 1. Si el comprobante tiene subtipo AX → buscar contacto con mismo subtipo
+        // 2. Si no hay AX → buscar el contacto que tenga categoria_costo y distribucion completos
+        // 3. Fallback → primer contacto con categoria y distribucion
+        let contactoMatch = null;
+
+        if (subtipoAX) {
           contactoMatch = contactosArr.find(c =>
-            c.subtipo.toLowerCase() === subtipo.toLowerCase()
+            c.subtipo.toLowerCase() === subtipoAX.toLowerCase()
           );
         }
+
         if (!contactoMatch) {
-          contactoMatch = contactosArr.find(c => !c.subtipo) || contactosArr[0];
+          // Buscar el que tenga categoria Y distribucion completos
+          contactoMatch = contactosArr.find(c => c.categoria_costo && c.distribucion_proceso);
         }
 
         if (!contactoMatch || !contactoMatch.categoria_costo || !contactoMatch.distribucion_proceso) {
@@ -321,23 +316,21 @@ export default function CostosScreen({ onVolver }) {
         const nombreBase  = contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor;
         const subcatKey   = subtipoContacto ? `${nombreBase} - ${subtipoContacto}` : nombreBase;
         const periodoReal = (row[18]||periodo).trim();
-        const diasHabiles = contactoMatch.periodicidad_dias; // col U
+        const diasHabiles = contactoMatch.periodicidad_dias;
 
         for (const proceso of procesos) {
           const key = `${periodoReal}|${subcatKey}|${proceso}`;
           if (subcatsExistentes.has(key)) { saltados++; continue; }
 
-          // Guardamos monto completo + días hábiles → el cálculo de costo hora
-          // se hace en el frontend con monto / dias_habiles / HORAS_DIA
           const filaData = [
             periodoReal,
             proceso,
             contactoMatch.categoria_costo,
             subcatKey,
-            total,           // col E — monto original de la factura
-            "",              // col F — costo_hora (se calcula en frontend)
-            emisor,          // col G — observaciones
-            diasHabiles,     // col H — periodicidad en días hábiles
+            total,
+            "",
+            emisor,
+            diasHabiles,
           ];
 
           await apiSheets("append_costo", filaData);
@@ -364,14 +357,9 @@ export default function CostosScreen({ onVolver }) {
     setGuardando(true);
     try {
       const row = [
-        formCosto.periodo,
-        "Todos",
-        formCosto.categoria,
-        formCosto.subcategoria,
-        formCosto.monto,
-        "",
-        formCosto.observaciones,
-        DIAS_MES, // periodicidad default mensual
+        formCosto.periodo, "Todos",
+        formCosto.categoria, formCosto.subcategoria,
+        formCosto.monto, "", formCosto.observaciones, DIAS_MES,
       ];
       await apiSheets("append_costo", row);
       await cargar();
@@ -381,6 +369,7 @@ export default function CostosScreen({ onVolver }) {
     setGuardando(false);
   };
 
+  // Historial
   const periodos = [...new Set(costos.map(c => c.periodo))].sort().reverse();
   const totalPorPeriodo = periodos.map(p => {
     const cp = costos.filter(c => c.periodo === p);
@@ -388,10 +377,8 @@ export default function CostosScreen({ onVolver }) {
     cp.forEach(c => {
       if (!sv[c.subcategoria]) sv[c.subcategoria] = { monto: c.monto, dias: c.dias_habiles, cat: c.categoria };
     });
-    const total = Object.values(sv).reduce((s, v) => {
-      if (v.cat === "Sueldos") return s + v.monto;
-      return s + costoHoraPorPeriodicidad(v.monto, v.dias) * HORAS_MES;
-    }, 0);
+    const total = Object.values(sv).reduce((s, v) =>
+      s + (v.cat === "Sueldos" ? v.monto : costoHoraPorPeriodicidad(v.monto, v.dias) * HORAS_MES), 0);
     return { periodo: p, total };
   });
 
@@ -504,7 +491,8 @@ export default function CostosScreen({ onVolver }) {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(totalPorCategoria).map(([cat, monto]) => {
+                {CATEGORIAS_ORDEN.filter(cat => cat !== "Amortizaciones").map(cat => {
+                  const monto = totalPorCategoria[cat] || 0;
                   const costoHoraCat = cat === "Sueldos"
                     ? (HORAS_SUELDOS > 0 ? monto / HORAS_SUELDOS : 0)
                     : monto / PROCESOS.length / HORAS_MES;
@@ -546,17 +534,16 @@ export default function CostosScreen({ onVolver }) {
           {costosPeriodo.length > 0 && (() => {
             const consolidado = {};
             costosPeriodo.forEach(c => {
-              if (!consolidado[c.subcategoria]) {
-                consolidado[c.subcategoria] = {
-                  categoria: c.categoria,
-                  subcategoria: c.subcategoria,
-                  monto_original: c.monto,
-                  dias_habiles: c.dias_habiles,
-                  monto_mensual: c.categoria === "Sueldos"
-                    ? c.monto
-                    : costoHoraPorPeriodicidad(c.monto, c.dias_habiles) * HORAS_MES,
-                };
-              }
+              if (consolidado[c.subcategoria]) return;
+              consolidado[c.subcategoria] = {
+                categoria:      c.categoria,
+                subcategoria:   c.subcategoria,
+                monto_original: c.monto,
+                dias_habiles:   c.dias_habiles,
+                monto_mensual:  c.categoria === "Sueldos"
+                  ? c.monto
+                  : costoHoraPorPeriodicidad(c.monto, c.dias_habiles) * HORAS_MES,
+              };
             });
             const filas = Object.values(consolidado).sort((a, b) => b.monto_mensual - a.monto_mensual);
             const totalConsolidado = filas.reduce((s, f) => s + f.monto_mensual, 0);
@@ -618,7 +605,7 @@ export default function CostosScreen({ onVolver }) {
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>🔄 Procesar comprobantes</div>
               <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>
-                Clasifica todos los comprobantes en Costos según la categoría, distribución y periodicidad de cada contacto.
+                Clasifica todos los comprobantes en Costos según categoría, distribución y periodicidad de cada contacto.
               </div>
             </div>
             <button onClick={procesarPeriodoACostos} disabled={procesando}
@@ -659,18 +646,16 @@ export default function CostosScreen({ onVolver }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Categoría</div>
-              <select value={formCosto.categoria}
-                onChange={e => setFormCosto(p => ({...p, categoria: e.target.value, subcategoria: CATEGORIAS[e.target.value][0]}))}
+              <select value={formCosto.categoria} onChange={e => setFormCosto(p => ({...p, categoria: e.target.value}))}
                 style={{ width: "100%", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, background: C.bg }}>
-                {Object.keys(CATEGORIAS).map(c => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIAS_ORDEN.filter(c => c !== "Amortizaciones").map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Subcategoría</div>
-              <select value={formCosto.subcategoria} onChange={e => setFormCosto(p => ({...p, subcategoria: e.target.value}))}
-                style={{ width: "100%", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, background: C.bg }}>
-                {(CATEGORIAS[formCosto.categoria] || []).map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Concepto</div>
+              <input value={formCosto.subcategoria} onChange={e => setFormCosto(p => ({...p, subcategoria: e.target.value}))}
+                placeholder="Ej: Edenor enero"
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Monto ($)</div>
