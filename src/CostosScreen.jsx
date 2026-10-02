@@ -58,8 +58,18 @@ const fmtPeso = (n) => {
 
 const parsNum = (s) => {
   if (!s && s !== 0) return 0;
-  if (typeof s === "number") return s;
-  return parseFloat(String(s).replace(/\$/g,"").replace(/\./g,"").replace(",",".").trim()) || 0;
+  if (typeof s === "number") return isNaN(s) ? 0 : s;
+  const str = String(s).replace(/\$/g,"").replace(/\s/g,"").trim();
+  // Formato argentino: punto = miles, coma = decimal → "207.746,00"
+  // Detectar si tiene coma como decimal (formato AR) o punto como decimal (formato EN)
+  const tieneComaDecimal = /,\d{1,2}$/.test(str);
+  if (tieneComaDecimal) {
+    // Formato AR: quitar puntos de miles, convertir coma a punto
+    return parseFloat(str.replace(/\./g,"").replace(",",".")) || 0;
+  } else {
+    // Formato EN o número sin decimales: quitar comas de miles si existen
+    return parseFloat(str.replace(/,/g,"")) || 0;
+  }
 };
 
 async function apiSheets(action, data, rowIndex) {
@@ -229,10 +239,7 @@ export default function CostosScreen({ onVolver }) {
       const compData = await apiSheets("get");
       const compRows = (compData.values || []).slice(1);
       // Procesar todos los que tengan total > 0 (sin importar estado)
-      const compPeriodo = compRows.filter(r => {
-        const total = parsNum((r[16]||"0").replace(/[$\s.]/g,"").replace(",","."));
-        return total > 0;
-      });
+      const compPeriodo = compRows.filter(r => parsNum(r[16]||"0") > 0);
 
       if (compPeriodo.length === 0) {
         setMsgProceso("⚠ No hay comprobantes para procesar");
@@ -272,7 +279,7 @@ export default function CostosScreen({ onVolver }) {
       for (const row of compPeriodo) {
         const cuitEmisor   = (row[7]||"").replace(/[-\s]/g,"");
         const cuitReceptor = (row[9]||"").replace(/[-\s]/g,"");
-        const total        = parsNum((row[16]||"0").replace(/[$\s.]/g,"").replace(",","."));
+        const total        = parsNum(row[16]||"0");
         const emisor       = row[6]||"";
         const subtipoAX    = (row[49]||"").trim(); // col AX del comprobante
 
