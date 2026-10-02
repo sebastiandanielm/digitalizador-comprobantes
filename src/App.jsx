@@ -43,6 +43,20 @@ const fmtFecha = (s) => {
   return isNaN(d) ? s : d.toLocaleDateString("es-AR");
 };
 
+// Parsear número desde formato argentino "$1.234.567,89" o número directo
+const parsearMonto = (val) => {
+  if (val == null || val === "") return null;
+  if (typeof val === "number") return isNaN(val) ? null : val;
+  const limpio = String(val)
+    .replace(/\$/g, "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")   // quitar separador de miles
+    .replace(",", ".")    // coma decimal → punto
+    .trim();
+  const n = parseFloat(limpio);
+  return isNaN(n) ? null : n;
+};
+
 const estadoCfg = {
   procesado:  { label: "Procesado", bg: "#eafaf1", color: "#27ae60" },
   revisar:    { label: "Revisar",   bg: "#fef5ec", color: "#e67e22" },
@@ -124,7 +138,6 @@ function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando })
         </div>
       </div>
 
-      {/* Tipos de comprobantes */}
       <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", marginBottom: 24 }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 700, fontSize: 15 }}>Tipos de comprobantes</span>
@@ -161,24 +174,18 @@ function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando })
         </div>
       </div>
 
-      {/* Palabras clave del buscador */}
       <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", marginBottom: 24 }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>🔍 Palabras clave del buscador</div>
-          <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>
-            Agregá términos separados por coma para que cada módulo sea más fácil de encontrar.
-          </div>
+          <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>Agregá términos separados por coma para que cada módulo sea más fácil de encontrar.</div>
         </div>
         <div style={{ padding: "8px 0" }}>
           {MODULOS_BUSCADOR.map((m, i) => (
             <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < MODULOS_BUSCADOR.length - 1 ? `1px solid ${C.border}` : "none" }}>
               <div style={{ minWidth: 180, fontWeight: 600, fontSize: 13, color: C.navy }}>{m.label}</div>
-              <input
-                value={getKeywords(m.key)}
-                onChange={e => setKeywords(m.key, e.target.value)}
+              <input value={getKeywords(m.key)} onChange={e => setKeywords(m.key, e.target.value)}
                 placeholder="ej: pago, orden, proveedor..."
-                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.text, background: C.bg }}
-              />
+                style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.text, background: C.bg }} />
             </div>
           ))}
         </div>
@@ -240,8 +247,8 @@ RECIBOS DE SUELDO:
 - "total" es el neto a cobrar
 
 DDJJ FORMULARIO 931 (SUSS/ARCA):
-- "emisor_razon_social" = "ARCA - S.U.S.S." (el organismo recaudador, NUNCA el contribuyente)
-- "emisor_cuit" = "33-69345023-9" (CUIT de ARCA)
+- "emisor_razon_social" = "ARCA - S.U.S.S."
+- "emisor_cuit" = "33-69345023-9"
 - "receptor_razon_social" = nombre del contribuyente
 - "receptor_cuit" = CUIT del contribuyente
 - "total" = suma de la sección VIII únicamente
@@ -252,64 +259,12 @@ DDJJ FORMULARIO 931 (SUSS/ARCA):
 - "neto_gravado" = Suma de remuneraciones
 - "periodo" = Mes-Año del formulario (ej: "04/2026")
 
-CERTIFICADO DE RETENCIÓN GANANCIAS:
-- "tipo" = el tipo que corresponda a "Retención Ganancias" de la lista disponible
-- "emisor_razon_social" = formato "ARCA - [razón social del agente de retención]"
-- "emisor_cuit" = CUIT del agente de retención
-- "receptor_razon_social" = el sujeto retenido
-- "receptor_cuit" = CUIT del sujeto retenido
-- "total" = monto retenido
-- "neto_gravado" = monto sujeto a retención
-- "observaciones" = impuesto, régimen, alícuota, comprobante que origina la retención
-
-CERTIFICADO DE RETENCIÓN IIBB:
-- "tipo" = el tipo que corresponda a "Retención IIBB" de la lista disponible
-- "emisor_razon_social" = formato "ARBA - [razón social]" o "CM - [razón social]"
-- "emisor_cuit" = CUIT del agente de retención
-- "receptor_razon_social" = el sujeto retenido
-- "receptor_cuit" = CUIT del sujeto retenido
-- "total" = monto retenido
-- "jurisdiccion" = provincia o "Convenio Multilateral"
-
-IMPUESTOS:
-- "emisor_razon_social" = "ARBA" o "Comisión Arbitral"
-- "receptor_razon_social" = nombre del contribuyente
-- "receptor_cuit" = CUIT del contribuyente
-- "jurisdiccion" = provincia o "Convenio Multilateral"
-- "anticipo_imp_determinado" = impuesto determinado del período
-- "a_pagar" = monto final a ingresar
-- "total" = monto final a pagar
-
-DDJJ IVA:
-- "emisor_razon_social" = "ARCA - Agencia de Recaudación y Control Aduanero"
-- "emisor_cuit" = "33-69345023-9"
-- "receptor_razon_social" = nombre del contribuyente
-- "debito_fiscal" = total débito fiscal
-- "credito_fiscal" = total crédito fiscal
-- "saldo_tecnico_anterior" = saldo técnico anterior
-- "saldo_tecnico" = saldo técnico resultante
-- "retenciones_pagos_cuenta" = retenciones y pagos a cuenta
-- "saldo_libre_disponibilidad" = saldo a favor
-- "total" = monto a pagar (0 si hay saldo a favor)
-
-EXTRACTO BANCARIO:
-- "emisor_razon_social" = nombre del banco
-- "emisor_cuit" = CUIT del banco (Credicoop: 30-57142763-9)
-- "receptor_razon_social" = nombre del titular
-- "comisiones_bancarias" = suma comisiones
-- "impuestos_debito_credito" = Ley 25.413 (SIEMPRE POSITIVO)
-- "percepcion_sircreb" = SIRCREB + Percepción IVA RG 2408
-- "seguros_bancarios" = seguros exigidos por el banco
-- "iva_21" = IVA sobre comisiones
-- "total" = suma de todos los conceptos bancarios
-- EXCLUIR débitos de servicios externos con factura propia
-
 REGLAS GENERALES:
 - Si un campo no existe, usá null
-- Los montos siempre como números sin símbolos
+- Los montos siempre como números sin símbolos ni puntos de miles
 - "periodo" = período de facturación — NUNCA la moneda
 - "moneda" = ARS, USD, EUR u otro
-- "total" es OBLIGATORIO — calculalo si no está explícito
+- "total" es OBLIGATORIO
 
 Respondé ÚNICAMENTE con JSON válido, sin texto adicional ni backticks:
 {
@@ -422,12 +377,13 @@ async function cargarContactosCache() {
     if (rows.length <= 1) return [];
     return rows.slice(1).map(row => ({
       id: row[0]||'', cuit: row[1]||'', razon_social: row[2]||'',
-      tipo: row[3]||'', subtipo: row[4]||'', categoria_costo: row[5]||'',
-      condicion_pago: row[6]||'', contacto: row[7]||'', telefono: row[8]||'',
-      mail: row[9]||'', direccion: row[10]||'', localidad: row[11]||'',
-      provincia: row[12]||'', cp: row[13]||'', condicion_iva: row[14]||'',
-      cbu: row[15]||'', banco: row[16]||'', alias: row[17]||'',
-      preferencia_cheque: row[18]||'', notas: row[19]||''
+      nombre_fantasia: row[3]||'', tipo: row[4]||'', subtipo: row[5]||'',
+      categoria_costo: row[6]||'', condicion_pago: row[7]||'',
+      contacto: row[8]||'', telefono: row[9]||'', mail: row[10]||'',
+      direccion: row[11]||'', localidad: row[12]||'', provincia: row[13]||'',
+      cp: row[14]||'', condicion_iva: row[15]||'', cbu: row[16]||'',
+      banco: row[17]||'', alias: row[18]||'',
+      distribucion_proceso: row[19]||'', periodicidad_dias: row[20]||'', notas: row[21]||''
     }));
   } catch (e) { return []; }
 }
@@ -436,8 +392,11 @@ function buscarEnCache(contactos, cuit, nombre) {
   if (!contactos || contactos.length === 0) return null;
   if (cuit) {
     const cuitLimpio = cuit.replace(/[-\s]/g, '');
-    const match = contactos.find(c => c.cuit.replace(/[-\s]/g, '') === cuitLimpio);
-    if (match) return match;
+    // Buscar primero el que tenga categoria_costo (más completo)
+    const matches = contactos.filter(c => c.cuit.replace(/[-\s]/g, '') === cuitLimpio);
+    if (matches.length > 0) {
+      return matches.find(c => c.categoria_costo) || matches[0];
+    }
   }
   if (nombre) {
     const nombreLower = nombre.toLowerCase();
@@ -456,6 +415,17 @@ async function eliminarDeSheets(rowIndex) {
     });
     return resp.ok;
   } catch (e) { return false; }
+}
+
+// Actualizar estado de un comprobante en el Sheet
+async function actualizarEstadoEnSheet(rowIndex, estado) {
+  try {
+    await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_comprobante", rowIndex, data: { estado } }),
+    });
+  } catch (e) { console.error("Error actualizando estado:", e); }
 }
 
 async function cargarDeSheets() {
@@ -477,20 +447,21 @@ async function cargarDeSheets() {
         fecha_emision: row[4] || null, fecha_vencimiento: row[5] || null,
         emisor_razon_social: row[6] || null, emisor_cuit: row[7] || null,
         receptor_razon_social: row[8] || null, receptor_cuit: row[9] || null,
-        neto_gravado: row[10] ? parseFloat(row[10]) : null,
-        iva_105: row[11] ? parseFloat(row[11]) : null,
-        iva_21: row[12] ? parseFloat(row[12]) : null,
-        iva_27: row[13] ? parseFloat(row[13]) : null,
-        percepciones: row[14] ? parseFloat(row[14]) : null,
-        otros_tributos: row[15] ? parseFloat(row[15]) : null,
-        total: row[16] ? parseFloat(row[16]) : null,
+        // ── FIX: usar parsearMonto para todos los campos numéricos ──
+        neto_gravado:   parsearMonto(row[10]),
+        iva_105:        parsearMonto(row[11]),
+        iva_21:         parsearMonto(row[12]),
+        iva_27:         parsearMonto(row[13]),
+        percepciones:   parsearMonto(row[14]),
+        otros_tributos: parsearMonto(row[15]),
+        total:          parsearMonto(row[16]),
         moneda: row[17] || "ARS", periodo: row[18] || null,
         empleado_nombre: row[19] || null, empleado_cuil: row[20] || null,
         observaciones: row[22] || null, items: [], confianza: "alta",
         contacto_clasificado: row[46] === "true" ? true : row[46] === "false" ? false : null,
-        contacto_tipo: row[47] || null,
+        contacto_tipo:      row[47] || null,
         contacto_categoria: row[48] || null,
-        contacto_subtipo: row[49] || null,
+        contacto_subtipo:   row[49] || null,
       },
     }));
   } catch (e) { return []; }
@@ -556,22 +527,23 @@ const Grid2 = ({ a, b }) => (
 
 // ─── App principal ────────────────────────────────────────────────────────────
 export default function App() {
-  const [tipos, setTipos]                 = useState(TIPOS_DEFAULT);
+  const [tipos, setTipos]                   = useState(TIPOS_DEFAULT);
   const [buscadorConfig, setBuscadorConfig] = useState([]);
-  const [comp, setComp]                   = useState([]);
-  const [drag, setDrag]                   = useState(false);
-  const [selId, setSelId]                 = useState(null);
-  const [seleccionados, setSeleccionados] = useState(new Set());
+  const [comp, setComp]                     = useState([]);
+  const [drag, setDrag]                     = useState(false);
+  const [selId, setSelId]                   = useState(null);
+  const [seleccionados, setSeleccionados]   = useState(new Set());
   const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
-  const [fTipo, setFTipo]                 = useState("todos");
-  const [fEst, setFEst]                   = useState("todos");
-  const [q, setQ]                         = useState("");
-  const [editing, setEditing]             = useState(false);
-  const [editD, setEditD]                 = useState({});
-  const [cargando, setCargando]           = useState(true);
-  const [eliminando, setEliminando]       = useState(false);
+  const [fTipo, setFTipo]                   = useState("todos");
+  const [fEst, setFEst]                     = useState("todos");
+  const [q, setQ]                           = useState("");
+  const [editing, setEditing]               = useState(false);
+  const [editD, setEditD]                   = useState({});
+  const [cargando, setCargando]             = useState(true);
+  const [eliminando, setEliminando]         = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
-  const [pantalla, setPantalla]           = useState("home"); // "home"|"digitalizador"|"pagos"|"cheques"|"contactos"|"config"|"insumos"
+  const [aprobando, setAprobando]           = useState(false);
+  const [pantalla, setPantalla]             = useState("home");
   const [guardandoTipos, setGuardandoTipos] = useState(false);
   const fileRef = useRef();
 
@@ -653,6 +625,25 @@ export default function App() {
     setEliminando(false);
   };
 
+  // ── FIX: aprobar guarda en Sheet y actualiza estado local ──
+  const aprobar = async (id) => {
+    const item = comp.find(c => c.id === id);
+    if (!item) return;
+    setAprobando(true);
+    // Actualizar en memoria inmediatamente
+    setComp((p) => p.map((c) => c.id === id ? { ...c, estado: "procesado" } : c));
+    // Guardar en Sheet
+    if (item.sheetRowIndex !== null) {
+      await actualizarEstadoEnSheet(item.sheetRowIndex, "procesado");
+    }
+    setAprobando(false);
+  };
+
+  const guardarEdit = () => {
+    setComp((p) => p.map((c) => c.id === selId ? { ...c, datos: { ...c.datos, ...editD } } : c));
+    setEditing(false);
+  };
+
   const filtrados = comp.filter((c) => {
     if (fTipo !== "todos" && c.datos?.tipo !== fTipo) return false;
     if (fEst === "clasificado") {
@@ -662,55 +653,13 @@ export default function App() {
     } else if (fEst !== "todos" && c.estado !== fEst) return false;
     if (q.trim()) {
       const s = q.toLowerCase();
-      return c.nombre.toLowerCase().includes(s) || c.datos?.emisor_razon_social?.toLowerCase().includes(s) || c.datos?.emisor_cuit?.includes(s) || c.datos?.numero_comprobante?.includes(s);
+      return c.nombre.toLowerCase().includes(s) ||
+        c.datos?.emisor_razon_social?.toLowerCase().includes(s) ||
+        c.datos?.emisor_cuit?.includes(s) ||
+        c.datos?.numero_comprobante?.includes(s);
     }
     return true;
   });
-
-  const withData   = comp.filter((c) => c.datos);
-  const totalFact  = withData.reduce((s, c) => s + (c.datos.total || 0), 0);
-  const creditoIVA = withData.reduce((s, c) => s + (((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || null || 0), 0);
-  const pendientes = comp.filter((c) => c.estado === "revisar").length;
-  const enCurso    = comp.filter((c) => c.estado === "procesando").length;
-  const sel        = selId ? comp.find((c) => c.id === selId) : null;
-
-  const exportExcel = () => {
-    const rows = withData.map((c) => ({
-      Archivo: c.nombre,
-      Tipo: tipos.find((t) => t.key === c.datos.tipo)?.label || c.datos.tipo,
-      "N° Comprobante": c.datos.numero_comprobante || "",
-      "Punto de Venta": c.datos.punto_venta || "",
-      "Fecha Emisión": c.datos.fecha_emision || "",
-      "Fecha Venc.": c.datos.fecha_vencimiento || "",
-      Emisor: c.datos.emisor_razon_social || "",
-      "CUIT Emisor": c.datos.emisor_cuit || "",
-      Receptor: c.datos.receptor_razon_social || "",
-      "CUIT Receptor": c.datos.receptor_cuit || "",
-      "Neto Gravado": c.datos.neto_gravado ?? "",
-      "IVA 10.5%": c.datos.iva_105 ?? "", "IVA 21%": c.datos.iva_21 ?? "", "IVA 27%": c.datos.iva_27 ?? "",
-      "IVA $": ((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || "",
-      Percepciones: c.datos.percepciones ?? "",
-      "Otros Tributos": c.datos.otros_tributos ?? "",
-      Total: c.datos.total ?? "",
-      Moneda: c.datos.moneda || "ARS",
-      Período: c.datos.periodo || "",
-      Empleado: c.datos.empleado_nombre || "",
-      CUIL: c.datos.empleado_cuil || "",
-      Estado: c.estado,
-      Observaciones: c.datos.observaciones || "",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length, 14) }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Comprobantes");
-    XLSX.writeFile(wb, `comprobantes_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  const aprobar     = (id) => setComp((p) => p.map((c) => c.id === id ? { ...c, estado: "procesado" } : c));
-  const guardarEdit = () => {
-    setComp((p) => p.map((c) => c.id === selId ? { ...c, datos: { ...c.datos, ...editD } } : c));
-    setEditing(false);
-  };
 
   const toggleSeleccion = (id) => {
     setSeleccionados(prev => {
@@ -741,11 +690,39 @@ export default function App() {
     setEliminandoMasivo(false);
   };
 
+  const withData   = comp.filter((c) => c.datos);
+  const totalFact  = withData.reduce((s, c) => s + (c.datos.total || 0), 0);
+  const creditoIVA = withData.reduce((s, c) => s + (((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || 0), 0);
+  const pendientes = comp.filter((c) => c.estado === "revisar").length;
+  const enCurso    = comp.filter((c) => c.estado === "procesando").length;
+  const sel        = selId ? comp.find((c) => c.id === selId) : null;
+
+  const exportExcel = () => {
+    const rows = withData.map((c) => ({
+      Archivo: c.nombre, Tipo: tipos.find((t) => t.key === c.datos.tipo)?.label || c.datos.tipo,
+      "N° Comprobante": c.datos.numero_comprobante || "", "Punto de Venta": c.datos.punto_venta || "",
+      "Fecha Emisión": c.datos.fecha_emision || "", "Fecha Venc.": c.datos.fecha_vencimiento || "",
+      Emisor: c.datos.emisor_razon_social || "", "CUIT Emisor": c.datos.emisor_cuit || "",
+      Receptor: c.datos.receptor_razon_social || "", "CUIT Receptor": c.datos.receptor_cuit || "",
+      "Neto Gravado": c.datos.neto_gravado ?? "", "IVA 10.5%": c.datos.iva_105 ?? "",
+      "IVA 21%": c.datos.iva_21 ?? "", "IVA 27%": c.datos.iva_27 ?? "",
+      "IVA $": ((c.datos.iva_105||0) + (c.datos.iva_21||0) + (c.datos.iva_27||0)) || "",
+      Percepciones: c.datos.percepciones ?? "", "Otros Tributos": c.datos.otros_tributos ?? "",
+      Total: c.datos.total ?? "", Moneda: c.datos.moneda || "ARS", Período: c.datos.periodo || "",
+      Empleado: c.datos.empleado_nombre || "", CUIL: c.datos.empleado_cuil || "",
+      Estado: c.estado, Observaciones: c.datos.observaciones || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length, 14) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Comprobantes");
+    XLSX.writeFile(wb, `comprobantes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const ss   = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
   const tdS  = { padding: "11px 14px", fontSize: 13, verticalAlign: "middle" };
   const btnS = (bg) => ({ flex: 1, background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontWeight: 700, fontSize: 13, cursor: "pointer" });
 
-  // ─── Header ───────────────────────────────────────────────────────────────
   const Header = () => (
     <div style={{ background: C.navy, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPantalla("home")}>
@@ -776,75 +753,18 @@ export default function App() {
     </div>
   );
 
-  // ─── Pantallas ─────────────────────────────────────────────────────────────
-  if (pantalla === "home") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <HomeScreen onNavegar={(key) => setPantalla(key)} buscadorConfig={buscadorConfig} />
-      </div>
-    );
-  }
-
-  if (pantalla === "pagos") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <PagosScreen onVolver={() => setPantalla("home")} />
-      </div>
-    );
-  }
-
-  if (pantalla === "cheques") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <CarteraChequesScreen onVolver={() => setPantalla("home")} />
-      </div>
-    );
-  }
-
-  if (pantalla === "contactos") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <ContactosScreen onVolver={() => setPantalla("home")} />
-      </div>
-    );
-  }
-
-  if (pantalla === "config") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} />
-      </div>
-    );
-  }
-
-  if (pantalla === "insumos") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <InsumosScreen onVolver={() => setPantalla("home")} />
-      </div>
-    );
-  }
-
-  if (pantalla === "costos") {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
-        <Header />
-        <CostosScreen onVolver={() => setPantalla("home")} />
-      </div>
-    );
-  }
+  if (pantalla === "home") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><HomeScreen onNavegar={(key) => setPantalla(key)} buscadorConfig={buscadorConfig} /></div>;
+  if (pantalla === "pagos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><PagosScreen onVolver={() => setPantalla("home")} /></div>;
+  if (pantalla === "cheques") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><CarteraChequesScreen onVolver={() => setPantalla("home")} /></div>;
+  if (pantalla === "contactos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ContactosScreen onVolver={() => setPantalla("home")} /></div>;
+  if (pantalla === "config") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} /></div>;
+  if (pantalla === "insumos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><InsumosScreen onVolver={() => setPantalla("home")} /></div>;
+  if (pantalla === "costos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><CostosScreen onVolver={() => setPantalla("home")} /></div>;
 
   // ─── Digitalizador ─────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}>
       <Header />
-
       <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "14px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, maxWidth: 900 }}>
           {[
@@ -906,7 +826,7 @@ export default function App() {
             </div>
 
             {seleccionados.size > 0 && (
-              <div style={{ background: C.navy, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+              <div style={{ background: C.navy, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14 }}>
                 <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{seleccionados.size} documento{seleccionados.size > 1 ? "s" : ""} seleccionado{seleccionados.size > 1 ? "s" : ""}</span>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setSeleccionados(new Set())}
@@ -960,12 +880,8 @@ export default function App() {
                       <td style={tdS} onClick={() => { setSelId(c.id === selId ? null : c.id); setEditing(false); setConfirmarEliminar(false); }}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                           <Badge estado={c.estado} />
-                          {c.datos?.contacto_clasificado === true && (
-                            <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>✓ Clasif.</span>
-                          )}
-                          {c.datos?.contacto_clasificado === false && (
-                            <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>⚠ S/Clasif.</span>
-                          )}
+                          {c.datos?.contacto_clasificado === true && <span style={{ background: C.successBg, color: C.success, border: `1px solid ${C.success}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>✓ Clasif.</span>}
+                          {c.datos?.contacto_clasificado === false && <span style={{ background: C.warningBg, color: C.warning, border: `1px solid ${C.warning}33`, borderRadius: 20, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>⚠ S/Clasif.</span>}
                         </div>
                       </td>
                     </tr>
@@ -1046,7 +962,7 @@ export default function App() {
                     <>
                       <Div label="Detalle de ítems" />
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                        <thead><tr>{["Descripción", "Cant.", "P. Unit.", "Total"].map((h) => <th key={h} style={{ textAlign: "left", color: C.textMuted, fontWeight: 700, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, fontSize: 10, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
+                        <thead><tr>{["Descripción","Cant.","P. Unit.","Total"].map((h) => <th key={h} style={{ textAlign: "left", color: C.textMuted, fontWeight: 700, padding: "4px 6px", borderBottom: `1px solid ${C.border}`, fontSize: 10, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
                         <tbody>
                           {sel.datos.items.map((it, i) => (
                             <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -1077,7 +993,11 @@ export default function App() {
                   {sel.datos.observaciones && <F l="Observaciones" v={sel.datos.observaciones} />}
 
                   <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
-                    {sel.estado === "revisar" && <button onClick={() => aprobar(sel.id)} style={btnS(C.accent)}>✓ Aprobar</button>}
+                    {sel.estado === "revisar" && (
+                      <button onClick={() => aprobar(sel.id)} disabled={aprobando} style={btnS(C.accent)}>
+                        {aprobando ? "⏳ Guardando..." : "✓ Aprobar"}
+                      </button>
+                    )}
                     <button onClick={() => { setEditing(true); setEditD({ ...sel.datos }); }} style={btnS("#6c757d")}>✎ Editar</button>
                   </div>
 
