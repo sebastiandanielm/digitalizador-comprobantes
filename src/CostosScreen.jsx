@@ -34,7 +34,7 @@ const CATEGORIAS = {
   "Insumos industriales": ["Mantenimiento", "Eléctricos", "Seguridad", "Ferretería"],
 };
 
-const HORAS_MES = 21 * 8; // 168 horas
+const HORAS_MES = 21 * 9; // 189 horas (21 días × 9 horas)
 
 const fmtPeso = (n) => {
   if (!n && n !== 0) return "—";
@@ -58,13 +58,11 @@ async function apiSheets(action, data, rowIndex) {
   return r.json();
 }
 
-// Obtener período actual como "MM/YYYY"
 const getPeriodoActual = () => {
   const now = new Date();
   return `${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()}`;
 };
 
-// Obtener lista de últimos 12 períodos
 const getPeriodos = () => {
   const periodos = [];
   const now = new Date();
@@ -76,15 +74,19 @@ const getPeriodos = () => {
 };
 
 export default function CostosScreen({ onVolver }) {
-  const [tab, setTab]               = useState("dashboard"); // "dashboard" | "carga" | "historial"
+  const [tab, setTab]               = useState("dashboard");
   const [periodo, setPeriodo]       = useState(getPeriodoActual());
   const [costos, setCostos]         = useState([]);
   const [amortizaciones, setAmortizaciones] = useState([]);
   const [cargando, setCargando]     = useState(true);
   const [guardando, setGuardando]   = useState(false);
+  const [procesando, setProcesando] = useState(false);
+  const [msgProceso, setMsgProceso] = useState("");
 
-  // Estado para carga manual
-  const [formCosto, setFormCosto]   = useState({
+  // Info de sueldos para mostrar en dashboard
+  const [infoSueldos, setInfoSueldos] = useState({ directos: 0, indirectos: 0, unidades: 0, horas: 0 });
+
+  const [formCosto, setFormCosto] = useState({
     periodo: getPeriodoActual(),
     categoria: "Gastos producción",
     subcategoria: "Edenor",
@@ -115,13 +117,13 @@ export default function CostosScreen({ onVolver }) {
 
       const amortRows = (amortData.values || []).slice(1);
       setAmortizaciones(amortRows.map(r => ({
-        cantidad:   parsNum(r[0]),
-        maquina:    r[1] || "",
-        proceso:    r[2] || "",
-        precio_usd: r[3] || "",
-        precio_ars: parsNum(r[5]),
-        anos:       r[6] || "",
-        fecha:      r[7] || "",
+        cantidad:     parsNum(r[0]),
+        maquina:      r[1] || "",
+        proceso:      r[2] || "",
+        precio_usd:   r[3] || "",
+        precio_ars:   parsNum(r[5]),
+        anos:         r[6] || "",
+        fecha:        r[7] || "",
         valor_actual: parsNum(r[8]),
         amort_hora:   parsNum(r[9]),
       })));
@@ -129,16 +131,43 @@ export default function CostosScreen({ onVolver }) {
     setCargando(false);
   };
 
-  // Calcular costos del período seleccionado
+  // ── Calcular unidades y horas de sueldos a partir de los costos del período
+  // Se recalcula cada vez que cambian costos o período
+  // Los contactos con Categoria_Costo="Sueldos" y Subtipo="Directo"/"Indirecto"
+  // quedan guardados como subcategoría en la hoja Costos con formato "Nombre - Directo" o "Nombre - Indirecto"
+  // Detectamos eso para calcular las unidades dinámicamente
+  const calcularUnidadesSueldos = (costosPeriodo) => {
+    const directos  = new Set();
+    const indirectos = new Set();
+    costosPeriodo.forEach(c => {
+      if (c.categoria === "Sueldos") {
+        const sub = c.subcategoria || "";
+        if (sub.toLowerCase().includes("directo")) {
+          directos.add(sub);
+        } else if (sub.toLowerCase().includes("indirecto")) {
+          indirectos.add(sub);
+        }
+      }
+    });
+    const cantDirectos   = directos.size;
+    const hayIndirectos  = indirectos.size > 0 ? 1 : 0;
+    const unidades       = cantDirectos + hayIndirectos;
+    const horas          = unidades > 0 ? HORAS_MES * unidades : HORAS_MES;
+    return { directos: cantDirectos, indirectos: indirectos.size, unidades, horas };
+  };
+
   const costosPeriodo = costos.filter(c => c.periodo === periodo);
 
-  // Total por categoría — monto real (dividido por cantidad de procesos)
+  // Info sueldos del período actual — para mostrar en dashboard
+  const sueldosInfo = calcularUnidadesSueldos(costosPeriodo);
+  const HORAS_SUELDOS = sueldosInfo.horas; // 189 × unidades
+
+  // ── Total por categoría (monto real, sin multiplicar por procesos)
   const totalPorCategoria = {};
   const countPorCategoria = {};
   Object.keys(CATEGORIAS).forEach(cat => { totalPorCategoria[cat] = 0; countPorCategoria[cat] = {}; });
   costosPeriodo.forEach(c => {
     if (totalPorCategoria[c.categoria] !== undefined) {
-      // Usar subcategoria como key para evitar multiplicar por procesos
       if (!countPorCategoria[c.categoria][c.subcategoria]) {
         countPorCategoria[c.categoria][c.subcategoria] = { monto: 0, count: 0 };
       }
@@ -146,14 +175,13 @@ export default function CostosScreen({ onVolver }) {
       countPorCategoria[c.categoria][c.subcategoria].count++;
     }
   });
-  // Calcular total real por categoría
   Object.keys(totalPorCategoria).forEach(cat => {
     Object.values(countPorCategoria[cat]).forEach(({ monto, count }) => {
       totalPorCategoria[cat] += count > 1 ? monto / count : monto;
     });
   });
 
-  // Amortización mensual total por proceso (desde hoja Amortizaciones)
+  // ── Amortización mensual por proceso
   const amortPorProceso = {};
   PROCESOS.forEach(p => { amortPorProceso[p] = 0; });
   amortizaciones.forEach(a => {
@@ -162,16 +190,15 @@ export default function CostosScreen({ onVolver }) {
     }
   });
 
-  // Total real del período — suma de comprobantes únicos (sin multiplicar por procesos)
+  // ── Total real del período
   const comprobantesUnicos = {};
-  const comprobantesCount = {};
+  const comprobantesCount  = {};
   costosPeriodo.forEach(c => {
     const key = c.subcategoria;
     if (!comprobantesUnicos[key]) { comprobantesUnicos[key] = 0; comprobantesCount[key] = 0; }
     comprobantesUnicos[key] += c.monto;
     comprobantesCount[key]++;
   });
-  // Dividir por cantidad de procesos para obtener monto real
   Object.keys(comprobantesUnicos).forEach(key => {
     if (comprobantesCount[key] > 1) {
       comprobantesUnicos[key] = comprobantesUnicos[key] / comprobantesCount[key];
@@ -180,37 +207,43 @@ export default function CostosScreen({ onVolver }) {
   const totalMes = Object.values(comprobantesUnicos).reduce((s, v) => s + v, 0)
     + Object.values(amortPorProceso).reduce((s, v) => s + v, 0) / PROCESOS.length;
 
-  // Costo hora por proceso — suma de costos asignados a ese proceso ÷ 168hs
+  // ── Costo hora por proceso
+  // Sueldos: monto total sueldos ÷ HORAS_SUELDOS → mismo valor sumado a todos los procesos
+  // Resto: monto asignado al proceso ÷ HORAS_MES
   const costoTotalPorProceso = {};
   PROCESOS.forEach(p => { costoTotalPorProceso[p] = 0; });
+
+  // Separar sueldos del resto
+  const totalSueldosPeriodo = totalPorCategoria["Sueldos"] || 0;
+  const costoHoraSueldos    = HORAS_SUELDOS > 0 ? totalSueldosPeriodo / HORAS_SUELDOS : 0;
+
   costosPeriodo.forEach(c => {
+    if (c.categoria === "Sueldos") return; // sueldos se manejan aparte
     if (costoTotalPorProceso[c.proceso] !== undefined) {
       costoTotalPorProceso[c.proceso] += c.monto;
     }
   });
+
   // Sumar amortizaciones propias de cada proceso
   PROCESOS.forEach(p => {
     costoTotalPorProceso[p] += (amortPorProceso[p] || 0);
   });
+
+  // Costo hora final por proceso = (resto ÷ HORAS_MES) + costoHoraSueldos
   const costoPorProceso = {};
   PROCESOS.forEach(p => {
-    costoPorProceso[p] = costoTotalPorProceso[p] / HORAS_MES;
+    const costoHoraResto = costoTotalPorProceso[p] / HORAS_MES;
+    costoPorProceso[p]   = costoHoraResto + costoHoraSueldos;
   });
 
-  // Guardar costo manual
-  const [procesando, setProcesando] = useState(false);
-  const [msgProceso, setMsgProceso] = useState("");
-
+  // ── Procesar comprobantes desde Digitalizador
   const procesarPeriodoACostos = async () => {
     setProcesando(true);
-    setMsgProceso("Leyendo comprobantes del período...");
+    setMsgProceso("Leyendo comprobantes...");
     try {
-      // 1. Leer comprobantes del período
       const compData = await apiSheets("get");
       const compRows = (compData.values || []).slice(1);
-      
-      // Tomar todos los comprobantes — cada uno usa su propio período (col S)
-      const compPeriodo = compRows.filter(r => (r[16]||"") !== ""); // solo los que tienen total
+      const compPeriodo = compRows.filter(r => (r[16]||"") !== "");
 
       if (compPeriodo.length === 0) {
         setMsgProceso("⚠ No hay comprobantes para procesar");
@@ -219,33 +252,27 @@ export default function CostosScreen({ onVolver }) {
       }
 
       setMsgProceso(`Encontré ${compPeriodo.length} comprobantes. Limpiando datos anteriores...`);
-
-      // 1b. Borrar TODOS los datos de Costos y reprocesar desde cero
       await apiSheets("delete_costos_todos");
 
-      // 2. Leer contactos para obtener categoria y distribucion
+      // Leer contactos
       const ctData = await apiSheets("get_contactos");
       const ctRows = (ctData.values || []).slice(1);
       const contactosMap = {};
       ctRows.forEach(r => {
         const cuit = (r[1]||"").replace(/[-\s]/g,"");
         if (cuit) {
-          // Puede haber varios contactos con mismo CUIT (distintos subtipos)
-          // Los guardamos como array para manejar municipios con varios impuestos
           if (!contactosMap[cuit]) contactosMap[cuit] = [];
           contactosMap[cuit].push({
             razon_social:         r[2]||"",
             nombre_fantasia:      r[3]||"",
-            subtipo:              r[5]||"",
-            categoria_costo:      r[6]||"",
-            distribucion_proceso: r[19]||"", // columna T
+            subtipo:              r[5]||"",  // col F — "Directo" / "Indirecto" para sueldos
+            categoria_costo:      r[6]||"",  // col G
+            distribucion_proceso: r[19]||"", // col T
           });
         }
       });
 
-      // 3. Set vacío — ya borramos el período, no hay duplicados posibles
       const subcatsExistentes = new Set();
-
       setMsgProceso("Clasificando y guardando en Costos...");
 
       let agregados = 0;
@@ -259,28 +286,24 @@ export default function CostosScreen({ onVolver }) {
         const total        = parseFloat(totalStr) || 0;
         const emisor       = row[6]||"";
         const estado       = row[21]||"";
-        const subtipo      = row[49]||""; // Columna AX — subtipo del comprobante
+        const subtipo      = row[49]||""; // col AX — subtipo del comprobante
 
         if (estado === "error") continue;
         if (total <= 0) continue;
 
-        // Buscar primero por CUIT emisor, luego por CUIT receptor
         let contactosArr = contactosMap[cuitEmisor];
         if (!contactosArr || contactosArr.length === 0) {
           contactosArr = contactosMap[cuitReceptor];
         }
         if (!contactosArr || contactosArr.length === 0) { sinClasif++; continue; }
 
-        // Buscar el contacto que matchea por subtipo
-        // Si el comprobante tiene subtipo, buscar ese contacto específico
-        // Si no tiene subtipo, usar el primer contacto sin subtipo
+        // Buscar contacto que matchea por subtipo del comprobante
         let contactoMatch;
         if (subtipo) {
           contactoMatch = contactosArr.find(c =>
             c.subtipo.toLowerCase() === subtipo.toLowerCase()
           );
         }
-        // Si no matchea por subtipo o no hay subtipo, usar el que no tiene subtipo
         if (!contactoMatch) {
           contactoMatch = contactosArr.find(c => !c.subtipo) || contactosArr[0];
         }
@@ -297,17 +320,22 @@ export default function CostosScreen({ onVolver }) {
 
         if (procesos.length === 0) { sinClasif++; continue; }
 
-        // Cada proceso recibe el monto completo — costos independientes por proceso
         const montoPorProceso = total;
-        const subcatKey = (contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor)
-          + (contactoMatch.subtipo ? " - " + contactoMatch.subtipo : "");
 
-        // Período real del comprobante
+        // Para sueldos: subcatKey incluye "Directo" o "Indirecto" del contacto (col F)
+        // Ejemplo: "Hugo Mariño - Indirecto", "Gonzalo Orellana - Directo"
+        const subtipoContacto = contactoMatch.subtipo || "";
+        const nombreBase = contactoMatch.razon_social || contactoMatch.nombre_fantasia || emisor;
+        const subcatKey  = subtipoContacto
+          ? `${nombreBase} - ${subtipoContacto}`
+          : nombreBase;
+
         const periodoReal = (row[18]||periodo).trim();
 
         for (const proceso of procesos) {
           const key = `${periodoReal}|${subcatKey}|${proceso}`;
           if (subcatsExistentes.has(key)) { saltados++; continue; }
+
           const filaData = [
             periodoReal,
             proceso,
@@ -343,11 +371,11 @@ export default function CostosScreen({ onVolver }) {
     try {
       const row = [
         formCosto.periodo,
-        "Todos", // se distribuye a todos los procesos
+        "Todos",
         formCosto.categoria,
         formCosto.subcategoria,
         formCosto.monto,
-        "", // costo_hora se calcula
+        "",
         formCosto.observaciones,
       ];
       await apiSheets("append_costo", row);
@@ -358,7 +386,7 @@ export default function CostosScreen({ onVolver }) {
     setGuardando(false);
   };
 
-  // Historial — agrupar por período
+  // Historial
   const periodos = [...new Set(costos.map(c => c.periodo))].sort().reverse();
   const totalPorPeriodo = periodos.map(p => {
     const total = costos.filter(c => c.periodo === p).reduce((s, c) => s + c.monto, 0);
@@ -410,11 +438,36 @@ export default function CostosScreen({ onVolver }) {
       {tab === "dashboard" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
+          {/* Info sueldos — banner si hay datos */}
+          {sueldosInfo.unidades > 0 && (
+            <div style={{ background: C.accentBg, border: `1px solid ${C.accent}44`, borderRadius: 12, padding: "12px 20px", display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontSize: 13, color: C.accent, fontWeight: 700 }}>👷 Plantilla de sueldos — {periodo}</div>
+              <div style={{ fontSize: 13, color: C.textSec }}>
+                Directos: <strong style={{ color: C.navy }}>{sueldosInfo.directos}</strong>
+              </div>
+              <div style={{ fontSize: 13, color: C.textSec }}>
+                Indirectos: <strong style={{ color: C.navy }}>{sueldosInfo.indirectos}</strong>
+              </div>
+              <div style={{ fontSize: 13, color: C.textSec }}>
+                Unidades: <strong style={{ color: C.navy }}>{sueldosInfo.unidades}</strong>
+              </div>
+              <div style={{ fontSize: 13, color: C.textSec }}>
+                Horas sueldos: <strong style={{ color: C.accent }}>{sueldosInfo.horas} hs</strong>
+                <span style={{ color: C.textMuted, fontWeight: 400 }}> (189 × {sueldosInfo.unidades})</span>
+              </div>
+              <div style={{ fontSize: 13, color: C.textSec }}>
+                Costo/hora sueldos: <strong style={{ color: C.accent }}>{fmtPeso(costoHoraSueldos)}/hs</strong>
+              </div>
+            </div>
+          )}
+
           {/* Costo hora por proceso */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, background: C.navy }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>💰 Costo hora por proceso — {periodo}</div>
-              <div style={{ fontSize: 12, color: "#7a9cc8", marginTop: 4 }}>Base: 21 días × 8 horas = 168 hs/mes</div>
+              <div style={{ fontSize: 12, color: "#7a9cc8", marginTop: 4 }}>
+                Base: 21 días × 9 horas = 189 hs/mes · Sueldos: 189 × {sueldosInfo.unidades || "?"} unidades = {sueldosInfo.horas || "?"} hs
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
               {PROCESOS.map((p, i) => (
@@ -422,9 +475,14 @@ export default function CostosScreen({ onVolver }) {
                   <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>{p}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: C.accent }}>{fmtPeso(costoPorProceso[p])}</div>
                   <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>por hora</div>
+                  {costoHoraSueldos > 0 && (
+                    <div style={{ fontSize: 11, color: C.textSec, marginTop: 6, background: C.bg, borderRadius: 6, padding: "3px 8px" }}>
+                      Sueldos: {fmtPeso(costoHoraSueldos)}/hs
+                    </div>
+                  )}
                   {amortPorProceso[p] > 0 && (
-                    <div style={{ fontSize: 11, color: C.textSec, marginTop: 8, background: C.bg, borderRadius: 6, padding: "4px 8px" }}>
-                      Amort. {fmtPeso(amortPorProceso[p] / HORAS_MES)}/hs
+                    <div style={{ fontSize: 11, color: C.textSec, marginTop: 4, background: C.bg, borderRadius: 6, padding: "3px 8px" }}>
+                      Amort: {fmtPeso(amortPorProceso[p] / HORAS_MES)}/hs
                     </div>
                   )}
                 </div>
@@ -450,18 +508,27 @@ export default function CostosScreen({ onVolver }) {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(totalPorCategoria).map(([cat, monto], i) => (
-                  <tr key={cat} style={{ borderBottom: `1px solid ${C.border}` }}>
-                    <td style={{ padding: "12px 20px", fontWeight: 600, fontSize: 14 }}>{cat}</td>
-                    <td style={{ padding: "12px 20px", fontSize: 14, fontWeight: 700 }}>{fmtPeso(monto)}</td>
-                    <td style={{ padding: "12px 20px", fontSize: 13, color: C.textSec }}>
-                      {totalMes > 0 ? `${((monto / totalMes) * 100).toFixed(1)}%` : "—"}
-                    </td>
-                    <td style={{ padding: "12px 20px", fontSize: 13, color: C.accent, fontWeight: 700 }}>
-                      {fmtPeso(monto / PROCESOS.length / HORAS_MES)}/hs
-                    </td>
-                  </tr>
-                ))}
+                {Object.entries(totalPorCategoria).map(([cat, monto]) => {
+                  // Sueldos usan HORAS_SUELDOS para el costo hora, el resto HORAS_MES × procesos
+                  const costoHoraCat = cat === "Sueldos"
+                    ? (HORAS_SUELDOS > 0 ? monto / HORAS_SUELDOS : 0)
+                    : monto / PROCESOS.length / HORAS_MES;
+                  return (
+                    <tr key={cat} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "12px 20px", fontWeight: 600, fontSize: 14 }}>{cat}</td>
+                      <td style={{ padding: "12px 20px", fontSize: 14, fontWeight: 700 }}>{fmtPeso(monto)}</td>
+                      <td style={{ padding: "12px 20px", fontSize: 13, color: C.textSec }}>
+                        {totalMes > 0 ? `${((monto / totalMes) * 100).toFixed(1)}%` : "—"}
+                      </td>
+                      <td style={{ padding: "12px 20px", fontSize: 13, color: C.accent, fontWeight: 700 }}>
+                        {fmtPeso(costoHoraCat)}/hs
+                        {cat === "Sueldos" && sueldosInfo.unidades > 0 && (
+                          <span style={{ fontSize: 10, color: C.textMuted, marginLeft: 4 }}>({sueldosInfo.horas}hs)</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {/* Amortizaciones */}
                 <tr style={{ borderBottom: `1px solid ${C.border}`, background: C.accentBg }}>
                   <td style={{ padding: "12px 20px", fontWeight: 600, fontSize: 14 }}>Amortizaciones</td>
@@ -483,9 +550,8 @@ export default function CostosScreen({ onVolver }) {
             </table>
           </div>
 
-          {/* Detalle subcategorías — consolidado por proveedor/concepto */}
+          {/* Detalle por proveedor/concepto */}
           {costosPeriodo.length > 0 && (() => {
-            // Consolidar: mostrar monto real del comprobante (dividir por procesos para deshacer la multiplicación)
             const consolidado = {};
             const procesosCount = {};
             costosPeriodo.forEach(c => {
@@ -497,7 +563,6 @@ export default function CostosScreen({ onVolver }) {
               consolidado[key].monto += c.monto;
               procesosCount[key]++;
             });
-            // Dividir por cantidad de procesos para obtener el monto real del comprobante
             Object.keys(consolidado).forEach(key => {
               if (procesosCount[key] > 1) {
                 consolidado[key].monto = consolidado[key].monto / procesosCount[key];
@@ -554,12 +619,13 @@ export default function CostosScreen({ onVolver }) {
             );
           })()}
 
-          {/* Botón procesar período */}
+          {/* Botón procesar */}
           <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, padding: 20, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>🔄 Procesar comprobantes del período</div>
               <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>
-                Lee todos los comprobantes de <strong>{periodo}</strong> y los clasifica en Costos según la categoría y distribución de cada contacto. Solo agrega los que no existen aún.
+                Lee todos los comprobantes y los clasifica en Costos según categoría y distribución de cada contacto.
+                Los sueldos quedan marcados como Directo/Indirecto según la columna Subtipo del contacto.
               </div>
             </div>
             <button onClick={procesarPeriodoACostos} disabled={procesando}
@@ -590,7 +656,6 @@ export default function CostosScreen({ onVolver }) {
           <div style={{ background: C.warningBg, border: `1px solid ${C.warning}44`, borderRadius: 8, padding: "10px 16px", marginBottom: 20, fontSize: 13, color: C.warning }}>
             ⚠ Usá esta opción solo cuando no tengas documento digital. Los costos del Digitalizador se clasifican automáticamente.
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Período</div>
@@ -599,7 +664,6 @@ export default function CostosScreen({ onVolver }) {
                 {getPeriodos().map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
-
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Categoría</div>
               <select value={formCosto.categoria}
@@ -608,7 +672,6 @@ export default function CostosScreen({ onVolver }) {
                 {Object.keys(CATEGORIAS).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Subcategoría</div>
               <select value={formCosto.subcategoria} onChange={e => setFormCosto(p => ({...p, subcategoria: e.target.value}))}
@@ -616,21 +679,18 @@ export default function CostosScreen({ onVolver }) {
                 {(CATEGORIAS[formCosto.categoria] || []).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Monto ($)</div>
               <input type="number" value={formCosto.monto} onChange={e => setFormCosto(p => ({...p, monto: e.target.value}))}
                 placeholder="Ej: 45000"
                 style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
             </div>
-
             <div>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Observaciones</div>
               <input value={formCosto.observaciones} onChange={e => setFormCosto(p => ({...p, observaciones: e.target.value}))}
                 placeholder="Ej: Factura Edenor enero 2026"
                 style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
             </div>
-
             <button onClick={guardarCosto} disabled={guardando}
               style={{ background: guardando ? "#ccc" : C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "12px 0", fontWeight: 700, fontSize: 14, cursor: guardando ? "not-allowed" : "pointer" }}>
               {guardando ? "⏳ Guardando..." : "💾 Guardar costo"}
