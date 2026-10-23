@@ -501,6 +501,38 @@ export default async function handler(req, res) {
       return res.status(200).json(await r3.json());
     }
 
+    // ── Bancos ────────────────────────────────────────────────────────────────
+
+    if (action === 'get_bancos') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!AA1:AA50`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data2 = await r.json();
+      const valores = (data2.values || []).flat().filter((v, i) => i > 0 && v && v.trim());
+      return res.status(200).json({ bancos: valores });
+    }
+
+    if (action === 'save_bancos') {
+      const bancos = data.bancos || [];
+      const values = [['Bancos'], ...bancos.map(b => [b])];
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!AA1:AA${values.length}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values }),
+        }
+      );
+      // Limpiar filas extra si había más bancos antes
+      const clearFrom = values.length + 1;
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Configuracion!AA${clearFrom}:AA50:clear`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
+
     // ── Insumos ───────────────────────────────────────────────────────────────
 
     if (action === 'get_insumos') {
