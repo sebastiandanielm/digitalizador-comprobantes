@@ -107,7 +107,7 @@ async function apiSheets(action, data, rowIndex) {
 }
 
 export default function OrdenPagoScreen({ onVolver, prefill }) {
-  const [paso, setPaso]                     = useState(prefill ? 2 : 1);
+  const [paso, setPaso]                     = useState(1);
   const [contactos, setContactos]           = useState([]);
   const [comprobantes, setComprobantes]     = useState([]);
   const [cheques, setCheques]               = useState([]);
@@ -115,7 +115,7 @@ export default function OrdenPagoScreen({ onVolver, prefill }) {
   const [formasPagoConfig, setFormasPagoConfig] = useState([]);
 
   const [busqProv, setBusqProv]             = useState("");
-  const [proveedor, setProveedor]           = useState(prefill ? { razon_social: prefill.proveedor, cuit: prefill.cuit, condicion_pago: "", banco: "", cbu: "", alias: "" } : null);
+  const [proveedor, setProveedor]           = useState(null);
   const [facturasSelec, setFacturasSelec]   = useState(new Set());
   const [ordenCheques, setOrdenCheques]     = useState("dias_asc");
   const [verSolo, setVerSolo]               = useState("todos");
@@ -131,7 +131,7 @@ export default function OrdenPagoScreen({ onVolver, prefill }) {
   const [formasManuales, setFormasManuales] = useState([]);
   // TC para facturas en USD
   const [tcFacturas, setTcFacturas]         = useState({});
-  // Últiimo número de orden
+  // Último número de orden
   const [ultimoNroOrden, setUltimoNroOrden] = useState(null);
 
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function OrdenPagoScreen({ onVolver, prefill }) {
     ]).then(([ctData, compData, chqData, fpData, ordData]) => {
       // Contactos — solo proveedores
       const ctRows = ctData.values || [];
-      setContactos(ctRows.slice(1)
+      const listaContactos = ctRows.slice(1)
         .map((r, i) => ({
           _idx: i, id: r[0]||"", cuit: r[1]||"", razon_social: r[2]||"",
           nombre_fantasia: r[3]||"",
@@ -152,8 +152,8 @@ export default function OrdenPagoScreen({ onVolver, prefill }) {
           condicion_pago: r[7]||"", contacto: r[8]||"", telefono: r[9]||"",
           mail: r[10]||"", cbu: r[16]||"", banco: r[17]||"", alias: r[18]||"",
         }))
-        .filter(c => c.tipo === "Proveedor")
-      );
+        .filter(c => c.tipo === "Proveedor");
+      setContactos(listaContactos);
 
       // Comprobantes
       const compRows = compData.values || [];
@@ -190,6 +190,17 @@ export default function OrdenPagoScreen({ onVolver, prefill }) {
         setUltimoNroOrden(lastNro);
       } else {
         setUltimoNroOrden(1000);
+      }
+
+      // Si viene prefill desde Cuenta Corriente, buscar el proveedor real por CUIT y saltar al paso 2
+      if (prefill && prefill.cuit) {
+        const provReal = listaContactos.find(
+          c => c.cuit.replace(/[-\s]/g, "") === prefill.cuit.replace(/[-\s]/g, "")
+        );
+        if (provReal) {
+          setProveedor(provReal);
+          setPaso(2);
+        }
       }
 
       setCargando(false);
