@@ -16,6 +16,10 @@ const C = {
 export default function PagosScreen({ onVolver, prefill }) {
   const [vista, setVista] = useState(prefill ? "nueva" : "menu");
 
+  useEffect(() => {
+    if (prefill) setVista("nueva");
+  }, [prefill]);
+
   if (vista === "nueva") {
     return <OrdenPagoScreen onVolver={() => setVista("menu")} prefill={prefill} />;
   }
