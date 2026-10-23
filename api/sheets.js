@@ -629,7 +629,36 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ deleted: totalRows - 1, ...(await r2.json()) });
     }
+    if (action === 'get_cc_proveedores') {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/CC_Proveedores`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.status(200).json(await r.json());
+    }
 
+    if (action === 'append_pago_inmediato') {
+      const d = data;
+      const row = [
+        d.fecha        || '',
+        d.proveedor    || '',
+        d.cuit         || '',
+        d.comprobante  || '',
+        d.total        ?? '',
+        d.forma_pago   || '',
+        d.periodo      || '',
+        new Date().toISOString(),
+      ];
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/CC_Proveedores!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [row] }),
+        }
+      );
+      return res.status(200).json(await r.json());
+    }
     return res.status(400).json({ error: 'Acción no válida' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
