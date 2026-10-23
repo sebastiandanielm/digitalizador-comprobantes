@@ -106,8 +106,8 @@ async function apiSheets(action, data, rowIndex) {
   return r.json();
 }
 
-export default function OrdenPagoScreen({ onVolver }) {
-  const [paso, setPaso]                     = useState(1);
+export default function OrdenPagoScreen({ onVolver, prefill }) {
+  const [paso, setPaso]                     = useState(prefill ? 2 : 1);
   const [contactos, setContactos]           = useState([]);
   const [comprobantes, setComprobantes]     = useState([]);
   const [cheques, setCheques]               = useState([]);
@@ -115,7 +115,7 @@ export default function OrdenPagoScreen({ onVolver }) {
   const [formasPagoConfig, setFormasPagoConfig] = useState([]);
 
   const [busqProv, setBusqProv]             = useState("");
-  const [proveedor, setProveedor]           = useState(null);
+  const [proveedor, setProveedor]           = useState(prefill ? { razon_social: prefill.proveedor, cuit: prefill.cuit, condicion_pago: "", banco: "", cbu: "", alias: "" } : null);
   const [facturasSelec, setFacturasSelec]   = useState(new Set());
   const [ordenCheques, setOrdenCheques]     = useState("dias_asc");
   const [verSolo, setVerSolo]               = useState("todos");
