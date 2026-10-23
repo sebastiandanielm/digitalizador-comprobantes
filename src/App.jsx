@@ -821,7 +821,7 @@ cc_proveedores: "🏢 Cta. Cte. Prov.", config: "⚙ Config" };
   );
 
   if (pantalla === "home") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><HomeScreen onNavegar={(key) => setPantalla(key)} buscadorConfig={buscadorConfig} /></div>;
-  if (pantalla === "pagos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><PagosScreen onVolver={() => setPantalla("home")} /></div>;
+  if (pantalla === "pagos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><PagosScreen onVolver={() => { setPantalla("home"); setPrefillPagos(null); }} prefill={prefillPagos} /></div>;
   if (pantalla === "cheques") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><CarteraChequesScreen onVolver={() => setPantalla("home")} /></div>;
   if (pantalla === "contactos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ContactosScreen onVolver={() => setPantalla("home")} /></div>;
   if (pantalla === "cc_proveedores"){return (<div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}><Header /><CuentasCorrientesProveedoresScreen onVolver={() => setPantalla("home")} onIrAPagos={(prefill) => { setPrefillPagos(prefill); setPantalla("pagos"); }} bancos={bancos}/></div>);}
