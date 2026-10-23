@@ -113,8 +113,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({ values: [[data.periodo]] }),
           }
         );
-        return res.status(200).json(await r.json());
-      }
+        return res.status(200).json(await r.json());      }
 
       // Actualización múltiple de campos específicos via batchUpdate
       const requests = [];
