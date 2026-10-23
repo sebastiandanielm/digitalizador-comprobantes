@@ -79,11 +79,13 @@ const TipoBadge = ({ tipo, tipos }) => {
   );
 };
 
-function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando }) {
+function ConfigScreen({ tipos, buscadorConfig, bancos, onGuardar, onVolver, guardando }) {
   const [lista, setLista]           = useState(tipos.map((t) => ({ ...t })));
   const [nuevoLabel, setNuevoLabel] = useState("");
   const [guardado, setGuardado]     = useState(false);
   const [busConfig, setBusConfig]   = useState(buscadorConfig.map(c => ({ ...c, keywords: c.keywords.join(', ') })));
+  const [listaBancos, setListaBancos] = useState(bancos || []);
+  const [nuevoBanco, setNuevoBanco]   = useState("");
 
   const MODULOS_BUSCADOR = [
     { key: "digitalizador", label: "Digitalizador" },
@@ -117,11 +119,19 @@ function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando })
     setNuevoLabel("");
   };
 
+  const agregarBanco = () => {
+    if (!nuevoBanco.trim()) return;
+    setListaBancos(p => [...p, nuevoBanco.trim()]);
+    setNuevoBanco("");
+  };
+
+  const eliminarBanco = (i) => setListaBancos(p => p.filter((_, idx) => idx !== i));
+
   const guardar = async () => {
     const configFinal = busConfig
       .filter(c => c.keywords.trim())
       .map(c => ({ key: c.key, keywords: c.keywords.split(',').map(k => k.trim()).filter(Boolean) }));
-    await onGuardar(lista, configFinal);
+    await onGuardar(lista, configFinal, listaBancos);
     setGuardado(true);
     setTimeout(() => setGuardado(false), 3000);
   };
@@ -189,6 +199,40 @@ function ConfigScreen({ tipos, buscadorConfig, onGuardar, onVolver, guardando })
                 style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.text, background: C.bg }} />
             </div>
           ))}
+        </div>
+      </div>
+
+      <div style={{ background: C.white, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", marginBottom: 24 }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>🏦 Bancos — Pago inmediato</div>
+          <div style={{ fontSize: 13, color: C.textSec, marginTop: 4 }}>Estos bancos aparecen como opciones en el modal de pago inmediato de Cta. Cte. Proveedores.</div>
+        </div>
+        <div style={{ padding: "8px 0" }}>
+          {listaBancos.length === 0 ? (
+            <div style={{ padding: "16px 20px", color: C.textMuted, fontSize: 13 }}>No hay bancos configurados. Agregá uno abajo.</div>
+          ) : listaBancos.map((b, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 16 }}>🏦</span>
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: C.navy }}>{b}</span>
+              <button onClick={() => eliminarBanco(i)}
+                style={{ background: C.dangerBg, color: C.danger, border: `1px solid ${C.danger}33`, borderRadius: 7, padding: "7px 12px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "16px 20px", borderTop: `2px solid ${C.border}`, background: C.bg }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Agregar banco</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input value={nuevoBanco} onChange={(e) => setNuevoBanco(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && agregarBanco()}
+              placeholder="Ej: Credicoop, Patagonia, Santander..."
+              style={{ flex: 1, padding: "9px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: C.white }} />
+            <button onClick={agregarBanco}
+              style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
+              + Agregar
+            </button>
+          </div>
         </div>
       </div>
 
@@ -494,7 +538,19 @@ async function cargarBuscadorConfig() {
   } catch (e) { return []; }
 }
 
-async function guardarConfigEnSheets(tipos, buscadorConfig) {
+async function cargarBancosDeSheets() {
+  try {
+    const resp = await fetch("/api/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "get_bancos" }),
+    });
+    const data = await resp.json();
+    return data.bancos || [];
+  } catch (e) { return []; }
+}
+
+async function guardarConfigEnSheets(tipos, buscadorConfig, bancos) {
   await fetch("/api/sheets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -504,6 +560,11 @@ async function guardarConfigEnSheets(tipos, buscadorConfig) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "save_buscador_config", data: { config: buscadorConfig } }),
+  });
+  await fetch("/api/sheets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "save_bancos", data: { bancos } }),
   });
 }
 
@@ -530,6 +591,7 @@ const Grid2 = ({ a, b }) => (
 export default function App() {
   const [tipos, setTipos]                   = useState(TIPOS_DEFAULT);
   const [buscadorConfig, setBuscadorConfig] = useState([]);
+  const [bancos, setBancos]                 = useState([]);
   const [comp, setComp]                     = useState([]);
   const [drag, setDrag]                     = useState(false);
   const [selId, setSelId]                   = useState(null);
@@ -549,19 +611,21 @@ export default function App() {
   const fileRef = useRef();
 
   useEffect(() => {
-    Promise.all([cargarTiposDeSheets(), cargarDeSheets(), cargarBuscadorConfig()]).then(([tiposGuardados, datos, busConfig]) => {
+    Promise.all([cargarTiposDeSheets(), cargarDeSheets(), cargarBuscadorConfig(), cargarBancosDeSheets()]).then(([tiposGuardados, datos, busConfig, bancosGuardados]) => {
       if (tiposGuardados && tiposGuardados.length > 0) setTipos(tiposGuardados);
       setComp(datos);
       setBuscadorConfig(busConfig);
+      if (bancosGuardados.length > 0) setBancos(bancosGuardados);
       setCargando(false);
     });
   }, []);
 
-  const handleGuardarConfig = async (nuevosTipos, nuevaBusConfig) => {
+  const handleGuardarConfig = async (nuevosTipos, nuevaBusConfig, nuevosBancos) => {
     setGuardandoTipos(true);
-    await guardarConfigEnSheets(nuevosTipos, nuevaBusConfig);
+    await guardarConfigEnSheets(nuevosTipos, nuevaBusConfig, nuevosBancos);
     setTipos(nuevosTipos);
     setBuscadorConfig(nuevaBusConfig);
+    setBancos(nuevosBancos);
     setGuardandoTipos(false);
   };
 
@@ -759,8 +823,8 @@ cc_proveedores: "🏢 Cta. Cte. Prov.", config: "⚙ Config" };
   if (pantalla === "pagos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><PagosScreen onVolver={() => setPantalla("home")} /></div>;
   if (pantalla === "cheques") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><CarteraChequesScreen onVolver={() => setPantalla("home")} /></div>;
   if (pantalla === "contactos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ContactosScreen onVolver={() => setPantalla("home")} /></div>;
-  if (pantalla === "cc_proveedores"){return (<div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}><Header /><CuentasCorrientesProveedoresScreen onVolver={() => setPantalla("home")} onIrAPagos={(prefill) => setPantalla("pagos")}/></div>);}
-  if (pantalla === "config") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} /></div>;
+  if (pantalla === "cc_proveedores"){return (<div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}><Header /><CuentasCorrientesProveedoresScreen onVolver={() => setPantalla("home")} onIrAPagos={(prefill) => setPantalla("pagos")} bancos={bancos}/></div>);}
+  if (pantalla === "config") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><ConfigScreen tipos={tipos} buscadorConfig={buscadorConfig} bancos={bancos} onGuardar={handleGuardarConfig} onVolver={() => setPantalla("home")} guardando={guardandoTipos} /></div>;
   if (pantalla === "insumos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><InsumosScreen onVolver={() => setPantalla("home")} /></div>;
   if (pantalla === "costos") return <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Segoe UI',system-ui,sans-serif", fontSize: 14, color: C.text }}><Header /><CostosScreen onVolver={() => setPantalla("home")} /></div>;
 
