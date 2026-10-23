@@ -66,15 +66,6 @@ async function cargarComprobantes() {
   }));
 }
 
-async function cargarConfiguracion() {
-  // Leer bancos desde Configuracion col A (cuentas bancarias)
-  const d = await apiSheets({ action: "get_tipos" });
-  const rows = d.values || [];
-  // Buscar filas con "banco" o cuentas — devolver col B como nombre de banco
-  // La configuración actual guarda bancos en otra sección; por ahora leemos col C (formas de pago)
-  const fp = await apiSheets({ action: "get_formas_pago" });
-  return fp.formas || [];
-}
 
 async function marcarPagado(rowIndex) {
   await apiSheets({ action: "update_comprobante", rowIndex, data: { estado: "pagado" } });
@@ -86,7 +77,7 @@ async function registrarPagoInmediato(data) {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export default function CuentasCorrientesProveedoresScreen({ onVolver, onIrAPagos }) {
+export default function CuentasCorrientesProveedoresScreen({ onVolver, onIrAPagos, bancos: bancosConfig }) {
   const [comprobantes, setComprobantes]   = useState([]);
   const [cargando, setCargando]           = useState(true);
   const [selCuit, setSelCuit]             = useState(null);   // CUIT del proveedor expandido
@@ -94,19 +85,26 @@ export default function CuentasCorrientesProveedoresScreen({ onVolver, onIrAPago
   const [filtroPendiente, setFiltroPendiente] = useState(true); // true = solo pendientes
   const [modalPagoInm, setModalPagoInm]   = useState(null);   // { comp, tipo } o null
   const [pagando, setPagando]             = useState(false);
-  const [bancos, setBancos]               = useState(["Credicoop", "Patagonia", "Banco"]);
   const [mensajeOk, setMensajeOk]         = useState("");
 
+  // Bancos configurables: si vienen por prop los usamos, si no cargamos del sheet
+  const [bancos, setBancos] = useState(bancosConfig && bancosConfig.length > 0 ? bancosConfig : []);
+
   useEffect(() => {
-    Promise.all([cargarComprobantes(), cargarConfiguracion()]).then(([comps, formas]) => {
+    if (bancosConfig && bancosConfig.length > 0) setBancos(bancosConfig);
+  }, [bancosConfig]);
+
+  useEffect(() => {
+    cargarComprobantes().then((comps) => {
       setComprobantes(comps);
-      // Extraer nombres de bancos desde formas de pago que no sean genéricas
-      const bancosDetectados = formas.filter(f =>
-        !["Efectivo","Transferencia","Echeq 3","Echeq Propio","Cheque","Saldo a favor Sermetales","Saldo a favor Proveedor"].includes(f)
-      );
-      if (bancosDetectados.length > 0) setBancos(bancosDetectados);
       setCargando(false);
     });
+    // Si no llegaron bancos por prop, los cargamos directamente
+    if (!bancosConfig || bancosConfig.length === 0) {
+      apiSheets({ action: "get_bancos" }).then(d => {
+        if (d.bancos && d.bancos.length > 0) setBancos(d.bancos);
+      });
+    }
   }, []);
 
   // Filtrar solo comprobantes de proveedores (tipo Proveedor o facturas recibidas)
@@ -417,7 +415,7 @@ export default function CuentasCorrientesProveedoresScreen({ onVolver, onIrAPago
               <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Seleccioná la forma de pago</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 
-                {/* Efectivo */}
+                {/* Efectivo — siempre disponible */}
                 <button
                   onClick={() => ejecutarPagoInmediato(modalPagoInm, "Efectivo")}
                   disabled={pagando}
@@ -427,35 +425,33 @@ export default function CuentasCorrientesProveedoresScreen({ onVolver, onIrAPago
                   💵<br /><span style={{ fontSize: 13, marginTop: 4, display: "block" }}>Efectivo</span>
                 </button>
 
-                {/* Banco 1 — Credicoop */}
-                <button
-                  onClick={() => ejecutarPagoInmediato(modalPagoInm, bancos[0] || "Credicoop")}
-                  disabled={pagando}
-                  style={{ background: C.blueBg, color: C.blue, border: `2px solid ${C.blue}55`, borderRadius: 12, padding: "16px 12px", cursor: "pointer", fontWeight: 700, fontSize: 14, textAlign: "center", transition: "all .15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.blue; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.blueBg; e.currentTarget.style.color = C.blue; }}>
-                  🏦<br /><span style={{ fontSize: 13, marginTop: 4, display: "block" }}>{bancos[0] || "Credicoop"}</span>
-                </button>
+                {/* Bancos dinámicos desde configuración */}
+                {bancos.map((banco, idx) => {
+                  const colores = [
+                    { bg: C.blueBg, color: C.blue, border: C.blue },
+                    { bg: C.accentBg, color: C.accentDark, border: C.accent },
+                    { bg: C.purpleBg, color: C.purple, border: C.purple },
+                    { bg: C.warningBg, color: C.warning, border: C.warning },
+                    { bg: C.dangerBg, color: C.danger, border: C.danger },
+                  ];
+                  const col = colores[idx % colores.length];
+                  return (
+                    <button key={banco}
+                      onClick={() => ejecutarPagoInmediato(modalPagoInm, banco)}
+                      disabled={pagando}
+                      style={{ background: col.bg, color: col.color, border: `2px solid ${col.border}55`, borderRadius: 12, padding: "16px 12px", cursor: "pointer", fontWeight: 700, fontSize: 14, textAlign: "center", transition: "all .15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = col.color; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = col.bg; e.currentTarget.style.color = col.color; }}>
+                      🏦<br /><span style={{ fontSize: 13, marginTop: 4, display: "block" }}>{banco}</span>
+                    </button>
+                  );
+                })}
 
-                {/* Banco 2 — Patagonia */}
-                <button
-                  onClick={() => ejecutarPagoInmediato(modalPagoInm, bancos[1] || "Patagonia")}
-                  disabled={pagando}
-                  style={{ background: C.accentBg, color: C.accentDark, border: `2px solid ${C.accent}55`, borderRadius: 12, padding: "16px 12px", cursor: "pointer", fontWeight: 700, fontSize: 14, textAlign: "center", transition: "all .15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.accent; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.accentBg; e.currentTarget.style.color = C.accentDark; }}>
-                  🏦<br /><span style={{ fontSize: 13, marginTop: 4, display: "block" }}>{bancos[1] || "Patagonia"}</span>
-                </button>
-
-                {/* Banco 3 */}
-                <button
-                  onClick={() => ejecutarPagoInmediato(modalPagoInm, bancos[2] || "Banco")}
-                  disabled={pagando}
-                  style={{ background: C.purpleBg, color: C.purple, border: `2px solid ${C.purple}55`, borderRadius: 12, padding: "16px 12px", cursor: "pointer", fontWeight: 700, fontSize: 14, textAlign: "center", transition: "all .15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.purple; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.purpleBg; e.currentTarget.style.color = C.purple; }}>
-                  🏦<br /><span style={{ fontSize: 13, marginTop: 4, display: "block" }}>{bancos[2] || "Banco"}</span>
-                </button>
+                {bancos.length === 0 && (
+                  <div style={{ gridColumn: "span 1", padding: "16px 12px", borderRadius: 12, border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: 12, textAlign: "center" }}>
+                    Configurá bancos en ⚙ Config
+                  </div>
+                )}
 
               </div>
 
