@@ -738,7 +738,7 @@ export default function App() {
         {enCurso > 0 && <span style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}55`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>⚡ Procesando {enCurso}…</span>}
         {["home","digitalizador","pagos","cheques","contactos","insumos","costos","cc_proveedores","config"].map(p => {
           const labels = { home: "🏠 Inicio", digitalizador: "📄 Digitalizador", pagos: "💳 Pagos", cheques: "🏦 Cheques", contactos: "👥 Contactos", insumos: "📦 Insumos", costos: "📊 Costos",
-cc_proveedores: "🏢 Cta. Cte. Prov.", config: "⚙ Config", config: "⚙ Config" };
+cc_proveedores: "🏢 Cta. Cte. Prov.", config: "⚙ Config" };
           return (
             <button key={p} onClick={() => setPantalla(p === pantalla ? "home" : p)}
               style={{ background: pantalla === p ? C.accent : "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
