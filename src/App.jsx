@@ -592,6 +592,7 @@ export default function App() {
   const [tipos, setTipos]                   = useState(TIPOS_DEFAULT);
   const [buscadorConfig, setBuscadorConfig] = useState([]);
   const [bancos, setBancos]                 = useState([]);
+  const [prefillPagos, setPrefillPagos] = useState(null);
   const [comp, setComp]                     = useState([]);
   const [drag, setDrag]                     = useState(false);
   const [selId, setSelId]                   = useState(null);
