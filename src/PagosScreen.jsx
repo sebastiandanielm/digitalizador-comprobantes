@@ -13,18 +13,17 @@ const C = {
   shadowLg: "0 8px 32px rgba(0,0,0,0.13)",
 };
 
-export default function PagosScreen({ onVolver }) {
-  const [vista, setVista] = useState("menu"); // "menu" | "nueva" | "historial"
+export default function PagosScreen({ onVolver, prefill }) {
+  const [vista, setVista] = useState(prefill ? "nueva" : "menu");
 
   if (vista === "nueva") {
-    return <OrdenPagoScreen onVolver={() => setVista("menu")} />;
+    return <OrdenPagoScreen onVolver={() => setVista("menu")} prefill={prefill} />;
   }
 
   if (vista === "historial") {
     return <HistorialOrdenesScreen onVolver={() => setVista("menu")} />;
   }
 
-  // ── Menú principal ──
   return (
     <div style={{ padding: "32px 24px", maxWidth: 800, margin: "0 auto" }}>
 
@@ -41,7 +40,6 @@ export default function PagosScreen({ onVolver }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
 
-        {/* Nueva orden */}
         <div onClick={() => setVista("nueva")}
           style={{ background: C.white, borderRadius: 16, boxShadow: C.shadowLg, padding: 32, cursor: "pointer", border: `2px solid transparent`, transition: "all .2s" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.transform = "translateY(-2px)"; }}
@@ -56,7 +54,6 @@ export default function PagosScreen({ onVolver }) {
           </div>
         </div>
 
-        {/* Historial */}
         <div onClick={() => setVista("historial")}
           style={{ background: C.white, borderRadius: 16, boxShadow: C.shadowLg, padding: 32, cursor: "pointer", border: `2px solid transparent`, transition: "all .2s" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.navy; e.currentTarget.style.transform = "translateY(-2px)"; }}
