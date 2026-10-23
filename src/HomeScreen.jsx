@@ -27,7 +27,7 @@ const MODULOS = [
   // Próximos
   { key: "costos", label: "Costos", icon: "📊", desc: "Analizá costos por categoría: impuestos, sueldos, servicios, materiales.", disponible: true,
     keywords: ["costo","gasto","analisis","categoria","material","sueldo","impuesto"] },
-  { key: "cc_proveedores", label: "Cta. Cte. Proveedores", icon: "📋", desc: "Saldo y facturas pendientes por proveedor.", disponible: false,
+  { key: "cc_proveedores", label: "Cta. Cte. Proveedores", icon: "📋", desc: "Saldo y facturas pendientes por proveedor.", disponible: true,
     keywords: ["cuenta corriente","saldo proveedor","deuda","pendiente","proveedor"] },
   { key: "cc_clientes", label: "Cta. Cte. Clientes", icon: "👤", desc: "Saldo y cobranzas pendientes por cliente.", disponible: false,
     keywords: ["cuenta corriente cliente","cobranza","saldo cliente","cobrar"] },
